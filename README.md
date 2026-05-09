@@ -2,6 +2,14 @@
 
 A small browser-based artillery tank game inspired by Scorched Earth. This is a parent-and-kid project, so the code is intentionally plain HTML, CSS, and JavaScript: no build tools, no dependencies, and no server required for normal play.
 
+## Getting Started
+
+1. Click the green **Code** button on this page, then choose **Download ZIP**.
+2. Unzip the downloaded file — this creates a folder called `scorched-vibes-main`.
+3. Open that folder and double-click `index.html`. It will open in your browser and the game starts immediately.
+
+No install, no internet connection needed after the download.
+
 ## How To Play
 
 Open `index.html` in a browser.
