@@ -1,0 +1,1472 @@
+const canvas = document.querySelector("#game");
+const ctx = canvas.getContext("2d");
+
+const redScoreEl = document.querySelector("#redScore");
+const blueScoreEl = document.querySelector("#blueScore");
+const redHealthEl = document.querySelector("#redHealth");
+const blueHealthEl = document.querySelector("#blueHealth");
+const redShieldEl = document.querySelector("#redShield");
+const blueShieldEl = document.querySelector("#blueShield");
+const redFuelEl = document.querySelector("#redFuel");
+const blueFuelEl = document.querySelector("#blueFuel");
+const messageEl = document.querySelector("#message");
+const resetButton = document.querySelector("#resetButton");
+const fireButton = document.querySelector("#fireButton");
+const moveLeftButton = document.querySelector("#moveLeftButton");
+const moveRightButton = document.querySelector("#moveRightButton");
+const helpButton = document.querySelector("#helpButton");
+const closeHelpButton = document.querySelector("#closeHelpButton");
+const helpModal = document.querySelector("#helpModal");
+const configModal = document.querySelector("#configModal");
+const startBattleButton = document.querySelector("#startBattleButton");
+const angleSlider = document.querySelector("#angleSlider");
+const powerSlider = document.querySelector("#powerSlider");
+const angleValue = document.querySelector("#angleValue");
+const powerValue = document.querySelector("#powerValue");
+const weaponSelect = document.querySelector("#weaponSelect");
+const weaponGrid = document.querySelector("#weaponGrid");
+const windValue = document.querySelector("#windValue");
+const gravitySelect = document.querySelector("#gravitySelect");
+const gravityValue = document.querySelector("#gravityValue");
+const terrainSelect = document.querySelector("#terrainSelect");
+const spreadSelect = document.querySelector("#spreadSelect");
+const terrainValue = document.querySelector("#terrainValue");
+const helpWeapons = document.querySelector("#helpWeapons");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+const BASE_GRAVITY = 178;
+const TANK_WIDTH = 34;
+const TANK_HEIGHT = 18;
+const BARREL_LENGTH = 28;
+const WIN_SCORE = 3;
+const TURN_STRIP_HEIGHT = 7;
+const STARTING_FUEL = 8;
+const MOVE_STEP = 18;
+const TANK_CENTER_FLOOR = HEIGHT - TURN_STRIP_HEIGHT - TANK_HEIGHT / 2 - 3;
+
+const gravityModes = {
+  normal: { label: "Normal", scale: 1 },
+  low: { label: "Low", scale: 0.58 },
+  high: { label: "High", scale: 1.55 },
+};
+
+const terrainModes = {
+  plains:  { label: "Grassy Plains",    roughness: 0.65, sky: ["#1a6ba0", "#4a9fd4", "#7ec8e3"], stars: { count: 0,  alpha: 0.0 }, ground: "#4a7c42", surface: "#7acc5a", sub: "#263224" },
+  desert:  { label: "Sandy Desert",     roughness: 0.75, sky: ["#8b3a00", "#c96a00", "#e89820"], stars: { count: 0,  alpha: 0.0 }, ground: "#c49a28", surface: "#e8d070", sub: "#8a6a10" },
+  snow:    { label: "Snowy Mountains",  roughness: 1.3,  sky: ["#7aabcc", "#a8cfe0", "#c8e0ee"], stars: { count: 10, alpha: 0.3 }, ground: "#6a7d8e", surface: "#e8f0f8", sub: "#3a4a55" },
+  moon:    { label: "Moon",             roughness: 0.9,  sky: ["#000005", "#050510", "#0a0a1a"], stars: { count: 80, alpha: 0.9 }, ground: "#6e6e6e", surface: "#a0a0a0", sub: "#3a3a3a" },
+  volcano: { label: "Volcano",          roughness: 1.4,  sky: ["#1a0000", "#3d0800", "#1a0505"], stars: { count: 15, alpha: 0.4 }, ground: "#1e1008", surface: "#ff4400", sub: "#0a0505" },
+  candy:   { label: "Candy Land",       roughness: 0.6,  sky: ["#ff99cc", "#ffb3d9", "#ffd6ec"], stars: { count: 0,  alpha: 0.0 }, ground: "#aa44ee", surface: "#ff88ee", sub: "#882299" },
+  jungle:  { label: "Jungle",           roughness: 1.0,  sky: ["#0a2010", "#153020", "#0a1a10"], stars: { count: 5,  alpha: 0.2 }, ground: "#1e5c1e", surface: "#3dcc3d", sub: "#0a2a0a" },
+  arctic:  { label: "Arctic Ice",       roughness: 0.8,  sky: ["#c5dced", "#daeaf5", "#edf4fa"], stars: { count: 0,  alpha: 0.0 }, ground: "#8ab8cc", surface: "#e0f4ff", sub: "#5a8a9e" },
+};
+
+const spreadModes = {
+  balanced: { label: "Balanced", scale: 0.8 },
+  uneven: { label: "Uneven", scale: 1.15 },
+  extreme: { label: "Extreme", scale: 1.55 },
+};
+
+const scores = { red: 0, blue: 0 };
+const tanks = {
+  red: makeTank("red", "#ef6a58", "#ffc0b5", 122, 45),
+  blue: makeTank("blue", "#64b5f6", "#c3e8ff", WIDTH - 122, 135),
+};
+
+const weapons = {
+  missile: {
+    label: "Baby Missile",
+    radius: 34,
+    damage: 42,
+    speed: 5.15,
+    color: "#f2c14e",
+    draw: "missile",
+  },
+  big: {
+    label: "Big Bomb",
+    radius: 54,
+    damage: 66,
+    speed: 4.7,
+    color: "#ff9f4a",
+    draw: "spiked",
+  },
+  cluster: {
+    label: "Cluster Pop",
+    radius: 26,
+    damage: 30,
+    speed: 5,
+    color: "#d9f99d",
+    cluster: true,
+    draw: "cluster",
+  },
+  lowGravity: {
+    label: "Low-G Shot",
+    radius: 32,
+    damage: 38,
+    speed: 5.25,
+    color: "#9ae6ff",
+    gravityScale: 0.38,
+    draw: "lowGravity",
+  },
+  highGravity: {
+    label: "High-G Shot",
+    radius: 38,
+    damage: 50,
+    speed: 4.9,
+    color: "#ffbd6f",
+    gravityScale: 1.85,
+    draw: "highGravity",
+  },
+  bouncy: {
+    label: "Bouncy Bomb",
+    radius: 36,
+    damage: 36,
+    speed: 5.25,
+    color: "#c4ff5f",
+    bounces: 2,
+    draw: "bouncy",
+  },
+  drill: {
+    label: "Drill",
+    radius: 42,
+    damage: 48,
+    speed: 5.05,
+    color: "#d6d3c4",
+    drillDepth: 54,
+    draw: "drill",
+  },
+  dirtMover: {
+    label: "Dirt Mover",
+    radius: 48,
+    damage: 0,
+    speed: 4.95,
+    color: "#a7c76f",
+    raiseTerrain: true,
+    draw: "dirt",
+  },
+  teleport: {
+    label: "Teleport Shot",
+    radius: 16,
+    damage: 0,
+    speed: 5.35,
+    color: "#c084fc",
+    teleport: true,
+    draw: "teleport",
+  },
+  shieldBreaker: {
+    label: "Shield Breaker",
+    radius: 32,
+    damage: 22,
+    shieldDamage: 80,
+    speed: 5.15,
+    color: "#7dd3fc",
+    draw: "shieldBreaker",
+  },
+  volcano: {
+    label: "Volcano",
+    radius: 42,
+    damage: 42,
+    speed: 4.7,
+    color: "#ff6b35",
+    volcano: true,
+    draw: "volcano",
+  },
+  volcanoShard: {
+    label: "Volcano Shard",
+    radius: 22,
+    damage: 20,
+    speed: 4.8,
+    color: "#ffb703",
+    shard: true,
+    draw: "volcanoShard",
+  },
+  gravityStorm: {
+    label: "Gravity Storm",
+    radius: 40,
+    damage: 46,
+    speed: 5,
+    color: "#b4a7ff",
+    storm: true,
+    draw: "gravityStorm",
+  },
+};
+
+let terrain = [];
+let currentTurn = "red";
+let projectiles = [];
+let particles = [];
+let craters = [];
+let activeShot = null;
+let wind = 0;
+let lastTime = 0;
+let battleOver = false;
+let screenShake = 0;
+let configuredTerrain = "gentle";
+let configuredSpread = "balanced";
+let configuredGravity = "normal";
+
+function makeTank(id, color, accent, x, angle) {
+  return {
+    id,
+    color,
+    accent,
+    x,
+    y: 0,
+    angle,
+    power: 62,
+    weapon: "missile",
+    health: 100,
+    shield: 40,
+    fuel: STARTING_FUEL,
+  };
+}
+
+function newBattle(resetMatch = false) {
+  if (resetMatch) {
+    scores.red = 0;
+    scores.blue = 0;
+  }
+
+  configuredTerrain = terrainSelect.value;
+  configuredSpread = spreadSelect.value;
+  configuredGravity = gravitySelect.value;
+  wind = Math.round((Math.random() * 2 - 1) * 44);
+  projectiles = [];
+  particles = [];
+  craters = [];
+  activeShot = null;
+  battleOver = false;
+  screenShake = 0;
+  currentTurn = Math.random() > 0.5 ? "red" : "blue";
+
+  tanks.red.x = 112 + Math.random() * 56;
+  tanks.blue.x = WIDTH - 168 + Math.random() * 56;
+  generateTerrain();
+  for (const tank of Object.values(tanks)) {
+    tank.health = 100;
+    tank.shield = 40;
+    tank.fuel = STARTING_FUEL;
+  }
+  tanks.red.angle = 45;
+  tanks.blue.angle = 135;
+  tanks.red.power = 62;
+  tanks.blue.power = 62;
+  settleTanks();
+  syncControlsToTurn();
+  updateHud();
+  messageEl.textContent = `${label(currentTurn)} aims first. Watch the wind and gravity.`;
+}
+
+function generateTerrain() {
+  const points = [];
+  const count = 13;
+  const terrainMode = terrainModes[configuredTerrain];
+  const spreadMode = spreadModes[configuredSpread];
+  const roughness = terrainMode.roughness * spreadMode.scale;
+  for (let i = 0; i <= count; i += 1) {
+    const t = i / count;
+    let y = 392;
+    if (configuredTerrain === "valley") {
+      y += Math.sin(t * Math.PI) * 115 * roughness;
+      y += Math.sin(t * Math.PI * 5.1) * 18 * roughness;
+    } else if (configuredTerrain === "mountain") {
+      y += -Math.sin(t * Math.PI) * 92 * roughness;
+      y += Math.sin(t * Math.PI * 4.4 + Math.random() * 0.5) * 42 * roughness;
+    } else if (configuredTerrain === "jagged") {
+      y += Math.sin(t * Math.PI * 7.5 + Math.random()) * 54 * roughness;
+      y += Math.sin(t * Math.PI * 2.3) * 44 * roughness;
+    } else if (configuredTerrain === "plateau") {
+      y += Math.round(Math.sin(t * Math.PI * 3.4) * 2) * 32 * roughness;
+      y += Math.sin(t * Math.PI * 8) * 8;
+    } else {
+      y += Math.sin(t * Math.PI * 2.1 + Math.random() * 0.55) * 58 * roughness;
+      y += Math.sin(t * Math.PI * 5.2 + Math.random() * 0.8) * 24 * roughness;
+    }
+    y += (Math.random() - 0.5) * 54 * roughness;
+    points.push(y);
+  }
+
+  terrain = new Array(WIDTH);
+  for (let x = 0; x < WIDTH; x += 1) {
+    const scaled = (x / (WIDTH - 1)) * count;
+    const left = Math.floor(scaled);
+    const right = Math.min(count, left + 1);
+    const local = scaled - left;
+    const smooth = local * local * (3 - 2 * local);
+    const y = points[left] * (1 - smooth) + points[right] * smooth;
+    terrain[x] = clamp(y, 260, 535);
+  }
+
+  applyTankHeightSpread();
+  flattenLandingZone(tanks.red.x, 42);
+  flattenLandingZone(tanks.blue.x, 42);
+}
+
+function applyTankHeightSpread() {
+  if (configuredSpread === "balanced") return;
+  const amount = configuredSpread === "extreme" ? 112 : 64;
+  const redIsHigh = Math.random() > 0.5;
+  shapeElevationAround(tanks.red.x, redIsHigh ? -amount : amount);
+  shapeElevationAround(tanks.blue.x, redIsHigh ? amount : -amount);
+}
+
+function shapeElevationAround(centerX, offset) {
+  const radius = 150;
+  const start = Math.max(0, Math.round(centerX - radius));
+  const end = Math.min(WIDTH - 1, Math.round(centerX + radius));
+  for (let x = start; x <= end; x += 1) {
+    const distanceFromCenter = Math.abs(x - centerX) / radius;
+    const influence = Math.max(0, 1 - distanceFromCenter * distanceFromCenter);
+    terrain[x] = clamp(terrain[x] + offset * influence, 230, 555);
+  }
+}
+
+function flattenLandingZone(centerX, radius) {
+  const start = Math.max(0, Math.round(centerX) - radius);
+  const end = Math.min(WIDTH - 1, Math.round(centerX) + radius);
+  const sample = terrain.slice(start, end + 1);
+  const average = sample.reduce((sum, y) => sum + y, 0) / sample.length;
+  for (let x = start; x <= end; x += 1) {
+    terrain[x] = average;
+  }
+}
+
+function terrainYAt(x) {
+  const ix = clamp(Math.round(x), 0, WIDTH - 1);
+  return terrain[ix];
+}
+
+function tankSlope(tank) {
+  return Math.atan2(terrainYAt(tank.x + 12) - terrainYAt(tank.x - 12), 24) * 0.65;
+}
+
+function getAimInfo(tank, angle = tank.angle) {
+  const slope = tankSlope(tank);
+  const radians = degreesToRadians(angle);
+  const baseLocalX = 1;
+  const baseLocalY = -16;
+  const baseX = tank.x + Math.cos(slope) * baseLocalX - Math.sin(slope) * baseLocalY;
+  const baseY = tank.y + Math.sin(slope) * baseLocalX + Math.cos(slope) * baseLocalY;
+  return {
+    baseX,
+    baseY,
+    muzzleX: baseX + Math.cos(radians) * BARREL_LENGTH,
+    muzzleY: baseY - Math.sin(radians) * BARREL_LENGTH,
+    radians,
+    slope,
+  };
+}
+
+function settleTanks(options = {}) {
+  for (const tank of Object.values(tanks)) {
+    const previousY = tank.y;
+    const nextY = Math.min(terrainYAt(tank.x) - TANK_HEIGHT / 2, TANK_CENTER_FLOOR);
+    tank.y = nextY;
+    if (options.fallDamage && previousY > 0) {
+      const fall = nextY - previousY;
+      if (fall > 24) {
+        const damage = clamp(Math.round((fall - 18) / 3), 1, 24);
+        applyDirectDamage(tank, damage, `${label(tank.id)} drops into the drill hole`);
+      }
+    }
+  }
+}
+
+function syncControlsToTurn() {
+  const tank = tanks[currentTurn];
+  angleSlider.value = tank.angle;
+  powerSlider.value = tank.power;
+  weaponSelect.value = tank.weapon;
+  updateWeaponButtons();
+  updateControlLabels();
+}
+
+function updateControlLabels() {
+  angleValue.textContent = `${angleSlider.value} deg`;
+  powerValue.textContent = powerSlider.value;
+}
+
+function updateHud() {
+  redScoreEl.textContent = scores.red;
+  blueScoreEl.textContent = scores.blue;
+  redHealthEl.textContent = Math.max(0, Math.round(tanks.red.health));
+  blueHealthEl.textContent = Math.max(0, Math.round(tanks.blue.health));
+  redShieldEl.textContent = Math.max(0, Math.round(tanks.red.shield));
+  blueShieldEl.textContent = Math.max(0, Math.round(tanks.blue.shield));
+  redFuelEl.textContent = Math.max(0, tanks.red.fuel);
+  blueFuelEl.textContent = Math.max(0, tanks.blue.fuel);
+  windValue.textContent = wind === 0 ? "Calm" : `${Math.abs(wind)} ${wind > 0 ? "east" : "west"}`;
+  gravityValue.textContent = gravityModes[configuredGravity].label;
+  terrainValue.textContent = terrainModes[configuredTerrain].label;
+}
+
+function renderWeaponButtons() {
+  weaponGrid.innerHTML = "";
+  for (const [key, weapon] of Object.entries(weapons)) {
+    if (weapon.shard) continue;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "weapon-button";
+    button.dataset.weapon = key;
+    button.setAttribute("aria-pressed", "false");
+
+    const preview = document.createElement("canvas");
+    preview.width = 84;
+    preview.height = 60;
+    drawWeaponPreview(preview, key);
+
+    const labelEl = document.createElement("span");
+    labelEl.textContent = weapon.label;
+
+    button.append(preview, labelEl);
+    button.addEventListener("click", () => selectWeapon(key));
+    weaponGrid.append(button);
+  }
+  updateWeaponButtons();
+}
+
+function renderHelpWeapons() {
+  helpWeapons.innerHTML = "";
+  for (const [key, weapon] of Object.entries(weapons)) {
+    if (weapon.shard) continue;
+    const item = document.createElement("li");
+    const descriptions = {
+      missile: "Baby Missile: reliable starter shot with medium damage and crater size.",
+      big: "Big Bomb: slower, bigger, spiked, and strong when it lands close.",
+      cluster: "Cluster Pop: three small impacts that cover a wider patch.",
+      lowGravity: "Low-G Shot: floats longer and reaches farther.",
+      highGravity: "High-G Shot: drops fast and hits with a heavier punch.",
+      bouncy: "Bouncy Bomb: skips off terrain before exploding.",
+      drill: "Drill: burrows underground, opens a deep hole, and can cause fall damage.",
+      dirtMover: "Dirt Mover: raises a mound for cover, ramps, traps, or escape routes.",
+      teleport: "Teleport Shot: moves your tank to the impact point.",
+      shieldBreaker: "Shield Breaker: strips shield energy before health damage.",
+      volcano: "Volcano: damages on first impact, then erupts into falling fire.",
+      gravityStorm: "Gravity Storm: changes gravity during flight for wild arcs.",
+    };
+    item.textContent = descriptions[key] || weapon.label;
+    helpWeapons.append(item);
+  }
+}
+
+function showHelp() {
+  helpModal.classList.add("active");
+}
+
+function hideHelp() {
+  helpModal.classList.remove("active");
+}
+
+function showConfig() {
+  configModal.classList.add("active");
+}
+
+function hideConfig() {
+  configModal.classList.remove("active");
+}
+
+function startConfiguredBattle(resetMatch = true) {
+  hideConfig();
+  newBattle(resetMatch);
+}
+
+function selectWeapon(key) {
+  if (!weapons[key] || weapons[key].shard) return;
+  weaponSelect.value = key;
+  tanks[currentTurn].weapon = key;
+  updateWeaponButtons();
+}
+
+function updateWeaponButtons() {
+  for (const button of weaponGrid.querySelectorAll(".weapon-button")) {
+    const selected = button.dataset.weapon === weaponSelect.value;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  }
+}
+
+function drawWeaponPreview(preview, key) {
+  const g = preview.getContext("2d");
+  const weapon = weapons[key];
+  g.clearRect(0, 0, preview.width, preview.height);
+  g.save();
+  g.translate(preview.width / 2, preview.height / 2);
+  g.rotate(-0.25);
+
+  if (weapon.draw === "spiked") {
+    g.fillStyle = "#151816";
+    for (let i = 0; i < 8; i += 1) {
+      const a = i * Math.PI / 4;
+      g.beginPath();
+      g.moveTo(Math.cos(a) * 9, Math.sin(a) * 9);
+      g.lineTo(Math.cos(a + 0.18) * 18, Math.sin(a + 0.18) * 18);
+      g.lineTo(Math.cos(a - 0.18) * 18, Math.sin(a - 0.18) * 18);
+      g.closePath();
+      g.fill();
+    }
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.arc(0, 0, 13, 0, Math.PI * 2);
+    g.fill();
+  } else if (weapon.draw === "cluster") {
+    for (const point of [{ x: 0, y: -8 }, { x: -9, y: 7 }, { x: 9, y: 7 }]) {
+      g.fillStyle = weapon.color;
+      g.beginPath();
+      g.arc(point.x, point.y, 7, 0, Math.PI * 2);
+      g.fill();
+    }
+  } else if (weapon.draw === "drill") {
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.moveTo(18, 0);
+    g.lineTo(-12, -10);
+    g.lineTo(-5, 0);
+    g.lineTo(-12, 10);
+    g.closePath();
+    g.fill();
+  } else if (weapon.draw === "dirt") {
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.arc(-7, 3, 8, 0, Math.PI * 2);
+    g.arc(3, -3, 10, 0, Math.PI * 2);
+    g.arc(11, 5, 7, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#5d704f";
+    g.fillRect(-15, 9, 30, 4);
+  } else if (weapon.draw === "teleport") {
+    g.strokeStyle = weapon.color;
+    g.lineWidth = 5;
+    g.beginPath();
+    g.arc(0, 0, 14, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = "#f7edff";
+    g.beginPath();
+    g.arc(0, 0, 6, 0, Math.PI * 2);
+    g.fill();
+  } else if (weapon.draw === "shieldBreaker") {
+    g.strokeStyle = weapon.color;
+    g.lineWidth = 5;
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(-18, 0);
+    g.lineTo(14, 0);
+    g.moveTo(5, -11);
+    g.lineTo(18, 0);
+    g.lineTo(5, 11);
+    g.stroke();
+  } else if (weapon.draw === "volcano" || weapon.draw === "volcanoShard") {
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.moveTo(18, 0);
+    g.lineTo(-12, -12);
+    g.lineTo(-4, 0);
+    g.lineTo(-12, 12);
+    g.closePath();
+    g.fill();
+    g.fillStyle = "#ffd166";
+    g.fillRect(-2, -3, 8, 6);
+  } else if (weapon.draw === "gravityStorm") {
+    g.strokeStyle = weapon.color;
+    g.lineWidth = 4;
+    for (let i = 0; i < 3; i += 1) {
+      g.beginPath();
+      g.ellipse(0, 0, 8 + i * 5, 15 - i, i * 0.8, 0, Math.PI * 2);
+      g.stroke();
+    }
+  } else if (weapon.draw === "lowGravity" || weapon.draw === "highGravity") {
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = weapon.draw === "lowGravity" ? "#e0f7ff" : "#5c2e12";
+    g.lineWidth = 4;
+    g.beginPath();
+    g.arc(0, 0, weapon.draw === "lowGravity" ? 19 : 10, 0, Math.PI * 2);
+    g.stroke();
+  } else {
+    g.fillStyle = weapon.color;
+    g.beginPath();
+    g.ellipse(0, 0, 15, 9, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+
+  g.restore();
+}
+
+function fire() {
+  if (projectiles.length > 0 || battleOver) return;
+
+  const tank = tanks[currentTurn];
+  tank.angle = Number(angleSlider.value);
+  tank.power = Number(powerSlider.value);
+  tank.weapon = weaponSelect.value;
+  const weapon = weapons[tank.weapon];
+  const aim = getAimInfo(tank, tank.angle);
+  const speed = tank.power * weapon.speed;
+
+  activeShot = {
+    owner: currentTurn,
+    weaponKey: tank.weapon,
+    resultMessage: "",
+  };
+  projectiles.push(makeProjectile({
+    owner: currentTurn,
+    weaponKey: tank.weapon,
+    x: aim.muzzleX,
+    y: aim.muzzleY,
+    vx: Math.cos(aim.radians) * speed,
+    vy: -Math.sin(aim.radians) * speed,
+  }));
+  messageEl.textContent = `${label(currentTurn)} fires ${weapon.label}.`;
+}
+
+function makeProjectile(settings) {
+  const weapon = weapons[settings.weaponKey];
+  return {
+    owner: settings.owner,
+    weaponKey: settings.weaponKey,
+    x: settings.x,
+    y: settings.y,
+    vx: settings.vx,
+    vy: settings.vy,
+    bounces: settings.bounces ?? weapon.bounces ?? 0,
+    trail: [],
+    age: 0,
+  };
+}
+
+function update(dt) {
+  fireButton.disabled = projectiles.length > 0 || battleOver;
+  moveLeftButton.disabled = projectiles.length > 0 || battleOver || tanks[currentTurn].fuel <= 0;
+  moveRightButton.disabled = moveLeftButton.disabled;
+  if (projectiles.length > 0) updateProjectiles(dt);
+
+  for (const particle of particles) {
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vy += currentGravity() * 0.38 * dt;
+    particle.life -= dt;
+  }
+  particles = particles.filter((particle) => particle.life > 0);
+  screenShake = Math.max(0, screenShake - dt * 16);
+}
+
+function updateProjectiles(dt) {
+  const spawned = [];
+  let survivors = projectiles;
+  const substeps = 4;
+  for (let i = 0; i < substeps; i += 1) {
+    const step = dt / substeps;
+    const nextSurvivors = [];
+    for (const shot of survivors) {
+      if (advanceProjectile(shot, step, spawned)) {
+        nextSurvivors.push(shot);
+      }
+    }
+    survivors = nextSurvivors.concat(spawned.splice(0));
+  }
+  projectiles = survivors;
+
+  if (projectiles.length === 0 && activeShot && !battleOver) {
+    finishShot(activeShot.owner);
+  }
+}
+
+function advanceProjectile(shot, dt, spawned) {
+  const weapon = weapons[shot.weaponKey];
+  shot.age += dt;
+  if (shot.age > projectileMaxAge(shot)) return false;
+  shot.vx += wind * dt;
+  if (weapon.storm) {
+    shot.vx += Math.sin(shot.age * 7) * 32 * dt;
+  }
+  shot.vy += projectileGravity(shot) * dt;
+  shot.x += shot.vx * dt;
+  shot.y += shot.vy * dt;
+  shot.trail.push({ x: shot.x, y: shot.y });
+  if (shot.trail.length > 70) shot.trail.shift();
+
+  const outOfBounds = shot.x < -45 || shot.x > WIDTH + 45 || shot.y > HEIGHT + 90 || (shot.y < -260 && shot.age > 1.5);
+  if (outOfBounds) return false;
+
+  const hitTerrain = shot.x >= 0 && shot.x < WIDTH && shot.y >= terrainYAt(shot.x);
+  const hitTank = Object.values(tanks).some((tank) => tank.id !== shot.owner && distance(shot, tank) < 20);
+  if (!hitTerrain && !hitTank) return true;
+
+  const impactX = clamp(shot.x, 0, WIDTH - 1);
+  const impactY = clamp(shot.y, 0, HEIGHT);
+
+  if (weapon.bounces && hitTerrain && !hitTank && shot.bounces > 0 && Math.abs(shot.vy) > 70) {
+    bounceProjectile(shot, impactX);
+    return true;
+  }
+
+  resolveImpact(shot, impactX, impactY, spawned);
+  return false;
+}
+
+function projectileGravity(shot) {
+  const weapon = weapons[shot.weaponKey];
+  let scale = weapon.gravityScale ?? 1;
+  if (weapon.storm) {
+    scale *= 0.32 + Math.abs(Math.sin(shot.age * 4.6)) * 2.3;
+  }
+  return currentGravity() * scale;
+}
+
+function projectileMaxAge(shot) {
+  const weapon = weapons[shot.weaponKey];
+  if (weapon.shard) return 4.5;
+  if (weapon.volcano) return 8.5;
+  if (weapon.storm) return 8;
+  return 9;
+}
+
+function currentGravity() {
+  return BASE_GRAVITY * gravityModes[configuredGravity].scale;
+}
+
+function bounceProjectile(shot, x) {
+  shot.y = terrainYAt(x) - 5;
+  shot.vy = -Math.abs(shot.vy) * 0.68;
+  shot.vx *= 0.78;
+  shot.bounces -= 1;
+  addParticles(shot.x, shot.y, weapons[shot.weaponKey].color, 12);
+  messageEl.textContent = `Bouncy Bomb skips. ${shot.bounces} bounce${shot.bounces === 1 ? "" : "s"} left.`;
+}
+
+function resolveImpact(shot, x, y, spawned) {
+  const weapon = weapons[shot.weaponKey];
+
+  if (weapon.teleport) {
+    teleportTank(shot.owner, x);
+    return;
+  }
+
+  if (weapon.raiseTerrain) {
+    raiseTerrainMound(x, weapon.radius);
+    craters.push({ x, y, radius: weapon.radius, life: 0.45, color: weapon.color });
+    addParticles(x, y, weapon.color, 34);
+    settleTanks();
+    updateHud();
+    activeShot.resultMessage = "Dirt Mover builds a new mound.";
+    return;
+  }
+
+  if (weapon.drillDepth) {
+    y = clamp(terrainYAt(x) + weapon.drillDepth, 0, HEIGHT);
+    activeShot.resultMessage = `${weapon.label} burrows underground before exploding.`;
+  }
+
+  processExplosion(x, y, shot.weaponKey, 1, { fallDamage: Boolean(weapon.drillDepth) });
+
+  if (weapon.cluster) {
+    for (const offset of [-42, 0, 42]) {
+      const popX = clamp(x + offset, 0, WIDTH - 1);
+      const popY = terrainYAt(popX) - 8;
+      processExplosion(popX, popY, "volcanoShard", 0.82);
+    }
+  }
+
+  if (weapon.volcano) {
+    spawnVolcanoShards(shot, x, y, spawned);
+    activeShot.resultMessage = "Volcano erupts into falling fire.";
+  }
+}
+
+function processExplosion(x, y, weaponKey, scale = 1, options = {}) {
+  const weapon = weapons[weaponKey];
+  const radius = weapon.radius * scale;
+  craterTerrain(x, y, radius);
+  craters.push({ x, y, radius, life: 0.45, color: weapon.color });
+  addParticles(x, y, weapon.color, Math.round((weaponKey === "big" ? 56 : 34) * scale));
+  screenShake = Math.max(screenShake, radius / 9);
+  applyDamage(x, y, weapon, scale);
+  settleTanks({ fallDamage: options.fallDamage });
+  updateHud();
+}
+
+function spawnVolcanoShards(shot, x, y, spawned) {
+  const angles = [-0.92, -0.48, 0, 0.48, 0.92];
+  for (const angle of angles) {
+    const speed = 220 + Math.random() * 70;
+    spawned.push(makeProjectile({
+      owner: shot.owner,
+      weaponKey: "volcanoShard",
+      x,
+      y: y - 14,
+      vx: Math.sin(angle) * speed,
+      vy: -Math.cos(angle) * speed - 80,
+    }));
+  }
+}
+
+function teleportTank(owner, x) {
+  const tank = tanks[owner];
+  const safeX = clamp(x, 35, WIDTH - 35);
+  flattenLandingZone(safeX, 28);
+  tank.x = safeX;
+  settleTanks();
+  addParticles(tank.x, tank.y - 15, weapons.teleport.color, 36);
+  activeShot.resultMessage = `${label(owner)} teleports to the impact point.`;
+  updateHud();
+}
+
+function moveCurrentTank(direction) {
+  if (projectiles.length > 0 || battleOver) return;
+  const tank = tanks[currentTurn];
+  if (tank.fuel <= 0) {
+    messageEl.textContent = `${label(currentTurn)} is out of fuel.`;
+    return;
+  }
+
+  const nextX = clamp(tank.x + direction * MOVE_STEP, 35, WIDTH - 35);
+  if (nextX === tank.x) {
+    messageEl.textContent = `${label(currentTurn)} cannot move farther that way.`;
+    return;
+  }
+
+  tank.x = nextX;
+  tank.fuel -= 1;
+  settleTanks();
+  updateHud();
+  messageEl.textContent = `${label(currentTurn)} moves. ${tank.fuel} fuel left.`;
+}
+
+function finishShot(owner) {
+  const redAlive = tanks.red.health > 0;
+  const blueAlive = tanks.blue.health > 0;
+  if (!redAlive || !blueAlive) {
+    finishBattle(redAlive ? "red" : "blue");
+    return;
+  }
+
+  currentTurn = owner === "red" ? "blue" : "red";
+  syncControlsToTurn();
+  updateHud();
+  messageEl.textContent = activeShot.resultMessage || `${label(currentTurn)} turn. Adjust for wind, gravity, and the new terrain.`;
+  activeShot = null;
+}
+
+function craterTerrain(cx, cy, radius) {
+  const start = Math.max(0, Math.floor(cx - radius));
+  const end = Math.min(WIDTH - 1, Math.ceil(cx + radius));
+  for (let x = start; x <= end; x += 1) {
+    const dx = x - cx;
+    const depth = Math.sqrt(Math.max(0, radius * radius - dx * dx));
+    const craterFloor = cy + depth * 0.72;
+    if (terrain[x] < craterFloor) {
+      terrain[x] = clamp(craterFloor, 0, HEIGHT + 40);
+    }
+  }
+}
+
+function raiseTerrainMound(cx, radius) {
+  const centerY = terrainYAt(cx);
+  const start = Math.max(0, Math.floor(cx - radius));
+  const end = Math.min(WIDTH - 1, Math.ceil(cx + radius));
+  for (let x = start; x <= end; x += 1) {
+    const dx = x - cx;
+    const lift = Math.sqrt(Math.max(0, radius * radius - dx * dx)) * 0.78;
+    const moundTop = centerY - lift;
+    if (terrain[x] > moundTop) {
+      terrain[x] = clamp(moundTop, 160, HEIGHT - TURN_STRIP_HEIGHT - 10);
+    }
+  }
+}
+
+function applyDamage(x, y, weapon, scale = 1) {
+  for (const tank of Object.values(tanks)) {
+    const d = distance({ x, y }, tank);
+    const damageRadius = weapon.radius * 1.6 * scale;
+    if (d < damageRadius) {
+      const hit = Math.max(0, 1 - d / damageRadius);
+      const rawDamage = Math.round(weapon.damage * scale * hit);
+      const shieldDamage = Math.round((weapon.shieldDamage ?? rawDamage * 0.8) * hit);
+      let healthDamage = rawDamage;
+
+      if (tank.shield > 0 && rawDamage > 0) {
+        const shieldBefore = tank.shield;
+        const shieldPressure = Math.max(rawDamage, shieldDamage);
+        const shieldLoss = Math.min(shieldBefore, shieldPressure);
+        tank.shield -= shieldLoss;
+        healthDamage = Math.max(0, rawDamage - shieldBefore);
+        if (shieldLoss > 0) {
+          activeShot.resultMessage = `${label(tank.id)} shield loses ${shieldLoss}.`;
+        }
+      }
+
+      if (healthDamage > 0) {
+        tank.health = clamp(tank.health - healthDamage, 0, 100);
+        activeShot.resultMessage = `${label(tank.id)} takes ${healthDamage} damage.`;
+      }
+    }
+  }
+}
+
+function applyDirectDamage(tank, amount, prefix) {
+  let remaining = amount;
+  if (tank.shield > 0) {
+    const shieldLoss = Math.min(tank.shield, remaining);
+    tank.shield -= shieldLoss;
+    remaining -= shieldLoss;
+  }
+  if (remaining > 0) {
+    tank.health = clamp(tank.health - remaining, 0, 100);
+  }
+  if (activeShot) {
+    activeShot.resultMessage = `${prefix} and takes ${amount} damage.`;
+  }
+}
+
+function finishBattle(winner) {
+  battleOver = true;
+  projectiles = [];
+  activeShot = null;
+  scores[winner] += 1;
+  updateHud();
+
+  if (scores[winner] >= WIN_SCORE) {
+    messageEl.textContent = `${label(winner)} wins the match. New battle starts soon.`;
+    setTimeout(() => newBattle(true), 2200);
+  } else {
+    messageEl.textContent = `${label(winner)} wins this battle. Next hill loading...`;
+    setTimeout(() => newBattle(), 2000);
+  }
+}
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 45 + Math.random() * 170;
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 70,
+      life: 0.45 + Math.random() * 0.55,
+      color,
+    });
+  }
+}
+
+function draw() {
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+  }
+  drawSky();
+  drawTerrain();
+  drawCraters();
+  drawProjectiles();
+  if (projectiles.length === 0 && !battleOver) drawAimArc(tanks[currentTurn]);
+  drawTanks();
+  drawParticles();
+  ctx.restore();
+  drawTurnStrip();
+}
+
+function drawSky() {
+  const theme = terrainModes[configuredTerrain];
+  const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  sky.addColorStop(0, theme.sky[0]);
+  sky.addColorStop(0.62, theme.sky[1]);
+  sky.addColorStop(1, theme.sky[2]);
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  if (theme.stars.count > 0) {
+    ctx.fillStyle = `rgba(242, 240, 223, ${theme.stars.alpha})`;
+    for (let i = 0; i < theme.stars.count; i += 1) {
+      const x = (i * 173) % WIDTH;
+      const y = 24 + ((i * 97) % 190);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  drawWindArrow();
+}
+
+function drawWindArrow() {
+  const x = WIDTH / 2;
+  const y = 42;
+  const length = clamp(Math.abs(wind) * 2.1, 12, 92);
+  const dir = wind >= 0 ? 1 : -1;
+  ctx.strokeStyle = "rgba(242, 193, 78, 0.82)";
+  ctx.fillStyle = "rgba(242, 193, 78, 0.82)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x - length * dir, y);
+  ctx.lineTo(x + length * dir, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + length * dir, y);
+  ctx.lineTo(x + (length - 13) * dir, y - 8);
+  ctx.lineTo(x + (length - 13) * dir, y + 8);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawTerrain() {
+  const theme = terrainModes[configuredTerrain];
+
+  ctx.beginPath();
+  ctx.moveTo(0, HEIGHT);
+  for (let x = 0; x < WIDTH; x += 1) {
+    ctx.lineTo(x, terrain[x]);
+  }
+  ctx.lineTo(WIDTH, HEIGHT);
+  ctx.closePath();
+  ctx.fillStyle = theme.ground;
+  ctx.fill();
+
+  ctx.beginPath();
+  for (let x = 0; x < WIDTH; x += 1) {
+    if (x === 0) ctx.moveTo(x, terrain[x]);
+    else ctx.lineTo(x, terrain[x]);
+  }
+  ctx.strokeStyle = theme.surface;
+  ctx.lineWidth = 5;
+  ctx.stroke();
+
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = theme.sub;
+  for (let x = 0; x < WIDTH; x += 28) {
+    const y = terrain[x] + 26 + ((x * 17) % 34);
+    ctx.fillRect(x, y, 16, HEIGHT - y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawCraters() {
+  for (const crater of craters) {
+    crater.life -= 0.014;
+    ctx.globalAlpha = Math.max(0, crater.life);
+    ctx.strokeStyle = crater.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(crater.x, crater.y, crater.radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  craters = craters.filter((crater) => crater.life > 0);
+}
+
+function drawTanks() {
+  drawTank(tanks.red);
+  drawTank(tanks.blue);
+}
+
+function drawTank(tank) {
+  ctx.save();
+  ctx.translate(tank.x, tank.y);
+
+  const slope = tankSlope(tank);
+  ctx.rotate(slope);
+
+  if (tank.shield > 0) {
+    const shieldColor = hexToRgb(tank.color);
+    ctx.strokeStyle = `rgba(${shieldColor.r}, ${shieldColor.g}, ${shieldColor.b}, ${0.22 + tank.shield / 95})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, -8, 29, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+  roundRect(-26, 8, 52, 7, 4);
+  ctx.fill();
+
+  ctx.fillStyle = "#111411";
+  roundRect(-TANK_WIDTH / 2 - 8, -1, TANK_WIDTH + 16, TANK_HEIGHT + 7, 7);
+  ctx.fill();
+
+  ctx.fillStyle = "#283026";
+  for (let x = -20; x <= 20; x += 10) {
+    ctx.beginPath();
+    ctx.arc(x, 11, 3.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const bodyGradient = ctx.createLinearGradient(0, -18, 0, 13);
+  bodyGradient.addColorStop(0, tank.accent);
+  bodyGradient.addColorStop(0.18, tank.color);
+  bodyGradient.addColorStop(1, "#2a3028");
+  ctx.fillStyle = bodyGradient;
+  ctx.beginPath();
+  ctx.moveTo(-22, 4);
+  ctx.lineTo(-15, -12);
+  ctx.lineTo(13, -15);
+  ctx.lineTo(23, -2);
+  ctx.lineTo(18, 8);
+  ctx.lineTo(-19, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(17, 20, 17, 0.72)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = tank.color;
+  roundRect(-13, -23, 26, 17, 8);
+  ctx.fill();
+  ctx.fillStyle = tank.accent;
+  ctx.beginPath();
+  ctx.arc(-4, -15, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  const radians = degreesToRadians(tank.angle);
+  ctx.strokeStyle = "#151816";
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(1, -16);
+  ctx.lineTo(Math.cos(radians - slope) * BARREL_LENGTH, -16 - Math.sin(radians - slope) * BARREL_LENGTH);
+  ctx.stroke();
+  ctx.strokeStyle = tank.accent;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(1, -16);
+  ctx.lineTo(Math.cos(radians - slope) * BARREL_LENGTH, -16 - Math.sin(radians - slope) * BARREL_LENGTH);
+  ctx.stroke();
+
+  drawTankBars(tank);
+  ctx.restore();
+}
+
+function drawTankBars(tank) {
+  ctx.fillStyle = "#111411";
+  ctx.fillRect(-24, -44, 48, 6);
+  ctx.fillStyle = tank.health > 45 ? "#8ccf6a" : tank.health > 20 ? "#f2c14e" : "#ef6a58";
+  ctx.fillRect(-23, -43, 46 * (tank.health / 100), 4);
+
+  ctx.fillStyle = "#111411";
+  ctx.fillRect(-24, -36, 48, 5);
+  ctx.fillStyle = tank.color;
+  ctx.fillRect(-23, -35, 46 * (tank.shield / 40), 3);
+}
+
+function drawAimArc(tank) {
+  const weapon = weapons[weaponSelect.value];
+  const aim = getAimInfo(tank, Number(angleSlider.value));
+  const speed = Number(powerSlider.value) * weapon.speed;
+  let px = aim.muzzleX;
+  let py = aim.muzzleY;
+  let vx = Math.cos(aim.radians) * speed;
+  let vy = -Math.sin(aim.radians) * speed;
+  ctx.fillStyle = weapon.storm ? "rgba(180, 167, 255, 0.58)" : "rgba(242, 240, 223, 0.45)";
+  for (let i = 0; i < 26; i += 1) {
+    const fakeShot = { weaponKey: weaponSelect.value, age: i * 0.06 };
+    vx += wind * 0.06;
+    vy += projectileGravity(fakeShot) * 0.06;
+    px += vx * 0.06;
+    py += vy * 0.06;
+    if (i % 3 === 0) {
+      ctx.beginPath();
+      ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawProjectiles() {
+  for (const shot of projectiles) {
+    drawProjectile(shot);
+  }
+}
+
+function drawProjectile(shot) {
+  const weapon = weapons[shot.weaponKey];
+  ctx.strokeStyle = weapon.storm ? "rgba(180, 167, 255, 0.45)" : "rgba(242, 240, 223, 0.35)";
+  ctx.lineWidth = weapon.storm ? 3 : 2;
+  ctx.beginPath();
+  shot.trail.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
+
+  const angle = Math.atan2(shot.vy, shot.vx);
+  ctx.save();
+  ctx.translate(shot.x, shot.y);
+  ctx.rotate(angle);
+
+  if (weapon.draw === "spiked") drawSpikedProjectile(weapon.color);
+  else if (weapon.draw === "cluster") drawClusterProjectile(weapon.color);
+  else if (weapon.draw === "bouncy") drawBouncyProjectile(weapon.color);
+  else if (weapon.draw === "drill") drawDrillProjectile(weapon.color);
+  else if (weapon.draw === "dirt") drawDirtMoverProjectile(weapon.color);
+  else if (weapon.draw === "teleport") drawTeleportProjectile(weapon.color);
+  else if (weapon.draw === "shieldBreaker") drawShieldBreakerProjectile(weapon.color);
+  else if (weapon.draw === "volcano" || weapon.draw === "volcanoShard") drawVolcanoProjectile(weapon.color, weapon.draw === "volcanoShard");
+  else if (weapon.draw === "gravityStorm") drawGravityStormProjectile(weapon.color);
+  else if (weapon.draw === "lowGravity" || weapon.draw === "highGravity") drawGravityProjectile(weapon.color, weapon.draw === "lowGravity");
+  else drawMissileProjectile(weapon.color);
+
+  ctx.restore();
+}
+
+function drawMissileProjectile(color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff0b8";
+  ctx.beginPath();
+  ctx.arc(3, -1, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawSpikedProjectile(color) {
+  ctx.fillStyle = "#151816";
+  for (let i = 0; i < 8; i += 1) {
+    const a = i * Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 7, Math.sin(a) * 7);
+    ctx.lineTo(Math.cos(a + 0.18) * 14, Math.sin(a + 0.18) * 14);
+    ctx.lineTo(Math.cos(a - 0.18) * 14, Math.sin(a - 0.18) * 14);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffd6a8";
+  ctx.beginPath();
+  ctx.arc(-3, -4, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawClusterProjectile(color) {
+  const offsets = [
+    { x: 2, y: -6 },
+    { x: -5, y: 5 },
+    { x: 8, y: 5 },
+  ];
+  ctx.strokeStyle = "rgba(92, 56, 34, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(2, -8);
+  ctx.lineTo(-5, 2);
+  ctx.moveTo(2, -8);
+  ctx.lineTo(8, 2);
+  ctx.stroke();
+  for (const offset of offsets) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(offset.x, offset.y, 5.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f4ffd8";
+    ctx.beginPath();
+    ctx.arc(offset.x - 1.5, offset.y - 1.5, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawBouncyProjectile(color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#263224";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawDrillProjectile(color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-8, -7);
+  ctx.lineTo(-4, 0);
+  ctx.lineTo(-8, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#4b4a42";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-4, -5);
+  ctx.lineTo(7, 0);
+  ctx.lineTo(-4, 5);
+  ctx.stroke();
+}
+
+function drawDirtMoverProjectile(color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(-4, 2, 6, 0, Math.PI * 2);
+  ctx.arc(4, -2, 7, 0, Math.PI * 2);
+  ctx.arc(10, 4, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#5d704f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, 8);
+  ctx.lineTo(14, 8);
+  ctx.stroke();
+}
+
+function drawTeleportProjectile(color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 9, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawShieldBreakerProjectile(color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(8, 0);
+  ctx.moveTo(2, -7);
+  ctx.lineTo(10, 0);
+  ctx.lineTo(2, 7);
+  ctx.stroke();
+}
+
+function drawVolcanoProjectile(color, small) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(-7, -7);
+  ctx.lineTo(-2, 0);
+  ctx.lineTo(-7, 7);
+  ctx.closePath();
+  ctx.fill();
+  if (!small) {
+    ctx.fillStyle = "#ffd166";
+    ctx.fillRect(-2, -2, 5, 4);
+  }
+}
+
+function drawGravityProjectile(color, lowGravity) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = lowGravity ? "#e0f7ff" : "#5c2e12";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, lowGravity ? 12 : 6, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawGravityStormProjectile(color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i += 1) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 5 + i * 4, 9 - i, i * 0.8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawTurnStrip() {
+  ctx.fillStyle = currentTurn === "red" ? tanks.red.color : tanks.blue.color;
+  ctx.fillRect(0, HEIGHT - TURN_STRIP_HEIGHT, WIDTH, TURN_STRIP_HEIGHT);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+  ctx.fillRect(0, HEIGHT - TURN_STRIP_HEIGHT, WIDTH, 1);
+}
+
+function drawParticles() {
+  for (const particle of particles) {
+    ctx.globalAlpha = Math.max(0, particle.life);
+    ctx.fillStyle = particle.color;
+    ctx.fillRect(particle.x - 2, particle.y - 2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function loop(time) {
+  const dt = Math.min(0.033, (time - lastTime) / 1000 || 0);
+  lastTime = time;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function label(id) {
+  return id === "red" ? "Red" : "Blue";
+}
+
+function degreesToRadians(degrees) {
+  return degrees * Math.PI / 180;
+}
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function hexToRgb(hex) {
+  const value = hex.replace("#", "");
+  return {
+    r: parseInt(value.slice(0, 2), 16),
+    g: parseInt(value.slice(2, 4), 16),
+    b: parseInt(value.slice(4, 6), 16),
+  };
+}
+
+function adjustActiveTankFromControls() {
+  angleSlider.value = clamp(Number(angleSlider.value), Number(angleSlider.min), Number(angleSlider.max));
+  powerSlider.value = clamp(Number(powerSlider.value), Number(powerSlider.min), Number(powerSlider.max));
+  tanks[currentTurn].angle = Number(angleSlider.value);
+  tanks[currentTurn].power = Number(powerSlider.value);
+  tanks[currentTurn].weapon = weaponSelect.value;
+  updateControlLabels();
+}
+
+fireButton.addEventListener("click", fire);
+resetButton.addEventListener("click", showConfig);
+helpButton.addEventListener("click", showHelp);
+closeHelpButton.addEventListener("click", hideHelp);
+startBattleButton.addEventListener("click", () => startConfiguredBattle(true));
+moveLeftButton.addEventListener("click", () => moveCurrentTank(-1));
+moveRightButton.addEventListener("click", () => moveCurrentTank(1));
+
+angleSlider.addEventListener("input", adjustActiveTankFromControls);
+powerSlider.addEventListener("input", adjustActiveTankFromControls);
+helpModal.addEventListener("click", (event) => {
+  if (event.target === helpModal) hideHelp();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "].includes(event.key)) {
+    event.preventDefault();
+  }
+  if (projectiles.length > 0 || battleOver) return;
+
+  if (event.key === "ArrowLeft") angleSlider.value = Number(angleSlider.value) + 1;
+  if (event.key === "ArrowRight") angleSlider.value = Number(angleSlider.value) - 1;
+  if (event.key === "ArrowUp") powerSlider.value = Number(powerSlider.value) + 1;
+  if (event.key === "ArrowDown") powerSlider.value = Number(powerSlider.value) - 1;
+  if (event.key === " ") fire();
+  adjustActiveTankFromControls();
+});
+
+renderWeaponButtons();
+renderHelpWeapons();
+newBattle(true);
+requestAnimationFrame(loop);

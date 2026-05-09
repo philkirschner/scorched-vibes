@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Scorched Vibes</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="game-shell" aria-label="Scorched Vibes artillery game">
+        <div class="topbar">
+          <div class="scoreboard" aria-label="Scoreboard">
+            <div class="score red">
+              <span>Red</span>
+              <div>
+                <strong id="redScore">0</strong>
+                <small>wins</small>
+              </div>
+              <div>
+                <strong id="redHealth">100</strong>
+                <small>hp</small>
+              </div>
+              <div>
+                <strong id="redShield">40</strong>
+                <small>shield</small>
+              </div>
+              <div>
+                <strong id="redFuel">8</strong>
+                <small>fuel</small>
+              </div>
+            </div>
+            <div class="score blue">
+              <span>Blue</span>
+              <div>
+                <strong id="blueScore">0</strong>
+                <small>wins</small>
+              </div>
+              <div>
+                <strong id="blueHealth">100</strong>
+                <small>hp</small>
+              </div>
+              <div>
+                <strong id="blueShield">40</strong>
+                <small>shield</small>
+              </div>
+              <div>
+                <strong id="blueFuel">8</strong>
+                <small>fuel</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <canvas id="game" width="960" height="640" aria-label="Two player artillery tank game"></canvas>
+
+        <div class="status-row">
+          <p id="message">Red aims first. Use angle and power, then fire.</p>
+          <div class="status-actions">
+            <button id="helpButton" type="button">Help</button>
+            <button id="resetButton" type="button">New Game</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Game controls">
+        <div class="control-group">
+          <h2>Shot</h2>
+          <label>
+            Angle <output id="angleValue">45 deg</output>
+            <input id="angleSlider" type="range" min="5" max="175" value="45" step="1">
+          </label>
+          <label>
+            Power <output id="powerValue">62</output>
+            <input id="powerSlider" type="range" min="20" max="100" value="62" step="1">
+          </label>
+          <div class="field">
+            <span class="field-label">Weapon</span>
+            <input id="weaponSelect" type="hidden" value="missile">
+            <div class="weapon-grid" id="weaponGrid" aria-label="Weapon choices"></div>
+          </div>
+          <button id="fireButton" type="button">Fire</button>
+        </div>
+
+        <div class="control-group">
+          <h2>Move</h2>
+          <div class="move-grid">
+            <button id="moveLeftButton" type="button">Move Left</button>
+            <button id="moveRightButton" type="button">Move Right</button>
+          </div>
+        </div>
+
+        <div class="control-group stat-grid">
+          <h2>Battle</h2>
+          <div>
+            <span>Wind</span>
+            <strong id="windValue">0</strong>
+          </div>
+          <div>
+            <span>Gravity</span>
+            <strong id="gravityValue">Normal</strong>
+          </div>
+          <div>
+            <span>Terrain</span>
+            <strong id="terrainValue">Gentle</strong>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div class="modal-backdrop active" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configTitle">
+      <section class="modal config-modal">
+        <h2 id="configTitle">Set Up Battle</h2>
+        <div class="config-grid">
+          <label>
+            Gravity
+            <select id="gravitySelect">
+              <option value="normal">Normal</option>
+              <option value="low">Low</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <label>
+            Terrain
+            <select id="terrainSelect">
+              <option value="plains">Grassy Plains</option>
+              <option value="desert">Sandy Desert</option>
+              <option value="snow">Snowy Mountains</option>
+              <option value="moon">Moon</option>
+              <option value="volcano">Volcano</option>
+              <option value="candy">Candy Land</option>
+              <option value="jungle">Jungle</option>
+              <option value="arctic">Arctic Ice</option>
+            </select>
+          </label>
+          <label>
+            Vertical Spread
+            <select id="spreadSelect">
+              <option value="balanced">Balanced</option>
+              <option value="uneven">Uneven</option>
+              <option value="extreme">Extreme</option>
+            </select>
+          </label>
+        </div>
+        <button id="startBattleButton" class="primary-button" type="button">Start Battle</button>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <section class="modal help-modal">
+        <div class="modal-header">
+          <h2 id="helpTitle">How To Play</h2>
+          <button id="closeHelpButton" type="button">Close</button>
+        </div>
+        <div class="help-content">
+          <section>
+            <h3>Controls</h3>
+            <p>Pick a weapon, adjust angle and power, optionally spend fuel to move, then fire. Arrow keys adjust aim and power. Space fires.</p>
+          </section>
+          <section>
+            <h3>Battle Rules</h3>
+            <p>Wind pushes shots sideways. Gravity changes the arc. Shield absorbs damage before health. Fuel is spent one point per move and does not refill during the battle.</p>
+          </section>
+          <section>
+            <h3>Weapons</h3>
+            <ul id="helpWeapons"></ul>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
