@@ -30,6 +30,7 @@ const gravitySelect = document.querySelector("#gravitySelect");
 const gravityValue = document.querySelector("#gravityValue");
 const terrainSelect = document.querySelector("#terrainSelect");
 const spreadSelect = document.querySelector("#spreadSelect");
+const distanceSelect = document.querySelector("#distanceSelect");
 const terrainValue = document.querySelector("#terrainValue");
 const helpWeapons = document.querySelector("#helpWeapons");
 
@@ -43,7 +44,17 @@ const WIN_SCORE = 3;
 const TURN_STRIP_HEIGHT = 7;
 const STARTING_FUEL = 8;
 const MOVE_STEP = 18;
-const TANK_CENTER_FLOOR = HEIGHT - TURN_STRIP_HEIGHT - TANK_HEIGHT / 2 - 3;
+// TANK_CENTER_FLOOR is computed dynamically once worldScale is known (see tankCenterFloor())
+
+let WORLD_W = WIDTH;
+let WORLD_H = HEIGHT;
+let worldScale = 1;
+
+const distanceModes = {
+  small:  { label: "Small",  sizeScale: 1.0 },
+  medium: { label: "Medium", sizeScale: 1.5 },
+  large:  { label: "Large",  sizeScale: 2.0 },
+};
 
 const gravityModes = {
   normal: { label: "Normal", scale: 1 },
@@ -202,9 +213,10 @@ let wind = 0;
 let lastTime = 0;
 let battleOver = false;
 let screenShake = 0;
-let configuredTerrain = "gentle";
+let configuredTerrain = "plains";
 let configuredSpread = "balanced";
 let configuredGravity = "normal";
+let configuredDistance = "small";
 
 function makeTank(id, color, accent, x, angle) {
   return {
@@ -231,6 +243,11 @@ function newBattle(resetMatch = false) {
   configuredTerrain = terrainSelect.value;
   configuredSpread = spreadSelect.value;
   configuredGravity = gravitySelect.value;
+  configuredDistance = distanceSelect.value;
+  const dm = distanceModes[configuredDistance];
+  WORLD_W = Math.round(WIDTH * dm.sizeScale);
+  WORLD_H = Math.round(HEIGHT * dm.sizeScale);
+  worldScale = WIDTH / WORLD_W;
   wind = Math.round((Math.random() * 2 - 1) * 44);
   projectiles = [];
   particles = [];
@@ -240,8 +257,8 @@ function newBattle(resetMatch = false) {
   screenShake = 0;
   currentTurn = Math.random() > 0.5 ? "red" : "blue";
 
-  tanks.red.x = 112 + Math.random() * 56;
-  tanks.blue.x = WIDTH - 168 + Math.random() * 56;
+  tanks.red.x = Math.round(WORLD_W * 0.12 + Math.random() * (WORLD_W * 0.055));
+  tanks.blue.x = Math.round(WORLD_W * 0.83 + Math.random() * (WORLD_W * 0.055));
   generateTerrain();
   for (const tank of Object.values(tanks)) {
     tank.health = 100;
@@ -264,67 +281,74 @@ function generateTerrain() {
   const terrainMode = terrainModes[configuredTerrain];
   const spreadMode = spreadModes[configuredSpread];
   const roughness = terrainMode.roughness * spreadMode.scale;
+  const hScale = WORLD_H / HEIGHT;
   for (let i = 0; i <= count; i += 1) {
     const t = i / count;
-    let y = 392;
-    if (configuredTerrain === "valley") {
-      y += Math.sin(t * Math.PI) * 115 * roughness;
-      y += Math.sin(t * Math.PI * 5.1) * 18 * roughness;
-    } else if (configuredTerrain === "mountain") {
-      y += -Math.sin(t * Math.PI) * 92 * roughness;
-      y += Math.sin(t * Math.PI * 4.4 + Math.random() * 0.5) * 42 * roughness;
-    } else if (configuredTerrain === "jagged") {
-      y += Math.sin(t * Math.PI * 7.5 + Math.random()) * 54 * roughness;
-      y += Math.sin(t * Math.PI * 2.3) * 44 * roughness;
-    } else if (configuredTerrain === "plateau") {
-      y += Math.round(Math.sin(t * Math.PI * 3.4) * 2) * 32 * roughness;
-      y += Math.sin(t * Math.PI * 8) * 8;
+    let y = WORLD_H * 0.6125;
+    if (configuredTerrain === "moon") {
+      // bowl shape with ripples — mimics craters
+      y += Math.sin(t * Math.PI) * 115 * hScale * roughness;
+      y += Math.sin(t * Math.PI * 5.1) * 18 * hScale * roughness;
+    } else if (configuredTerrain === "jungle") {
+      // central mountain ridge with random bumps
+      y += -Math.sin(t * Math.PI) * 92 * hScale * roughness;
+      y += Math.sin(t * Math.PI * 4.4 + Math.random() * 0.5) * 42 * hScale * roughness;
+    } else if (configuredTerrain === "snow" || configuredTerrain === "volcano") {
+      // sharp jagged peaks
+      y += Math.sin(t * Math.PI * 7.5 + Math.random()) * 54 * hScale * roughness;
+      y += Math.sin(t * Math.PI * 2.3) * 44 * hScale * roughness;
+    } else if (configuredTerrain === "arctic" || configuredTerrain === "candy") {
+      // stepped plateaus
+      y += Math.round(Math.sin(t * Math.PI * 3.4) * 2) * 32 * hScale * roughness;
+      y += Math.sin(t * Math.PI * 8) * 8 * hScale;
     } else {
-      y += Math.sin(t * Math.PI * 2.1 + Math.random() * 0.55) * 58 * roughness;
-      y += Math.sin(t * Math.PI * 5.2 + Math.random() * 0.8) * 24 * roughness;
+      // plains, desert — rolling hills
+      y += Math.sin(t * Math.PI * 2.1 + Math.random() * 0.55) * 58 * hScale * roughness;
+      y += Math.sin(t * Math.PI * 5.2 + Math.random() * 0.8) * 24 * hScale * roughness;
     }
-    y += (Math.random() - 0.5) * 54 * roughness;
+    y += (Math.random() - 0.5) * 54 * hScale * roughness;
     points.push(y);
   }
 
-  terrain = new Array(WIDTH);
-  for (let x = 0; x < WIDTH; x += 1) {
-    const scaled = (x / (WIDTH - 1)) * count;
+  terrain = new Array(WORLD_W);
+  for (let x = 0; x < WORLD_W; x += 1) {
+    const scaled = (x / (WORLD_W - 1)) * count;
     const left = Math.floor(scaled);
     const right = Math.min(count, left + 1);
     const local = scaled - left;
     const smooth = local * local * (3 - 2 * local);
     const y = points[left] * (1 - smooth) + points[right] * smooth;
-    terrain[x] = clamp(y, 260, 535);
+    terrain[x] = clamp(y, WORLD_H * 0.406, WORLD_H * 0.836);
   }
 
   applyTankHeightSpread();
-  flattenLandingZone(tanks.red.x, 42);
-  flattenLandingZone(tanks.blue.x, 42);
+  const flatRadius = Math.round(42 * WORLD_W / WIDTH);
+  flattenLandingZone(tanks.red.x, flatRadius);
+  flattenLandingZone(tanks.blue.x, flatRadius);
 }
 
 function applyTankHeightSpread() {
   if (configuredSpread === "balanced") return;
-  const amount = configuredSpread === "extreme" ? 112 : 64;
+  const amount = (configuredSpread === "extreme" ? 112 : 64) * (WORLD_H / HEIGHT);
   const redIsHigh = Math.random() > 0.5;
   shapeElevationAround(tanks.red.x, redIsHigh ? -amount : amount);
   shapeElevationAround(tanks.blue.x, redIsHigh ? amount : -amount);
 }
 
 function shapeElevationAround(centerX, offset) {
-  const radius = 150;
+  const radius = 150 * (WORLD_W / WIDTH);
   const start = Math.max(0, Math.round(centerX - radius));
-  const end = Math.min(WIDTH - 1, Math.round(centerX + radius));
+  const end = Math.min(WORLD_W - 1, Math.round(centerX + radius));
   for (let x = start; x <= end; x += 1) {
     const distanceFromCenter = Math.abs(x - centerX) / radius;
     const influence = Math.max(0, 1 - distanceFromCenter * distanceFromCenter);
-    terrain[x] = clamp(terrain[x] + offset * influence, 230, 555);
+    terrain[x] = clamp(terrain[x] + offset * influence, WORLD_H * 0.359, WORLD_H * 0.867);
   }
 }
 
 function flattenLandingZone(centerX, radius) {
   const start = Math.max(0, Math.round(centerX) - radius);
-  const end = Math.min(WIDTH - 1, Math.round(centerX) + radius);
+  const end = Math.min(WORLD_W - 1, Math.round(centerX) + radius);
   const sample = terrain.slice(start, end + 1);
   const average = sample.reduce((sum, y) => sum + y, 0) / sample.length;
   for (let x = start; x <= end; x += 1) {
@@ -333,8 +357,12 @@ function flattenLandingZone(centerX, radius) {
 }
 
 function terrainYAt(x) {
-  const ix = clamp(Math.round(x), 0, WIDTH - 1);
+  const ix = clamp(Math.round(x), 0, WORLD_W - 1);
   return terrain[ix];
+}
+
+function tankCenterFloor() {
+  return (HEIGHT - TURN_STRIP_HEIGHT) / worldScale - TANK_HEIGHT / 2 - 3;
 }
 
 function tankSlope(tank) {
@@ -361,7 +389,7 @@ function getAimInfo(tank, angle = tank.angle) {
 function settleTanks(options = {}) {
   for (const tank of Object.values(tanks)) {
     const previousY = tank.y;
-    const nextY = Math.min(terrainYAt(tank.x) - TANK_HEIGHT / 2, TANK_CENTER_FLOOR);
+    const nextY = Math.min(terrainYAt(tank.x) - TANK_HEIGHT / 2, tankCenterFloor());
     tank.y = nextY;
     if (options.fallDamage && previousY > 0) {
       const fall = nextY - previousY;
@@ -687,15 +715,15 @@ function advanceProjectile(shot, dt, spawned) {
   shot.trail.push({ x: shot.x, y: shot.y });
   if (shot.trail.length > 70) shot.trail.shift();
 
-  const outOfBounds = shot.x < -45 || shot.x > WIDTH + 45 || shot.y > HEIGHT + 90 || (shot.y < -260 && shot.age > 1.5);
+  const outOfBounds = shot.x < -45 || shot.x > WORLD_W + 45 || shot.y > WORLD_H + 90 || (shot.y < -260 && shot.age > 1.5);
   if (outOfBounds) return false;
 
-  const hitTerrain = shot.x >= 0 && shot.x < WIDTH && shot.y >= terrainYAt(shot.x);
+  const hitTerrain = shot.x >= 0 && shot.x < WORLD_W && shot.y >= terrainYAt(shot.x);
   const hitTank = Object.values(tanks).some((tank) => tank.id !== shot.owner && distance(shot, tank) < 20);
   if (!hitTerrain && !hitTank) return true;
 
-  const impactX = clamp(shot.x, 0, WIDTH - 1);
-  const impactY = clamp(shot.y, 0, HEIGHT);
+  const impactX = clamp(shot.x, 0, WORLD_W - 1);
+  const impactY = clamp(shot.y, 0, WORLD_H);
 
   if (weapon.bounces && hitTerrain && !hitTank && shot.bounces > 0 && Math.abs(shot.vy) > 70) {
     bounceProjectile(shot, impactX);
@@ -755,7 +783,7 @@ function resolveImpact(shot, x, y, spawned) {
   }
 
   if (weapon.drillDepth) {
-    y = clamp(terrainYAt(x) + weapon.drillDepth, 0, HEIGHT);
+    y = clamp(terrainYAt(x) + weapon.drillDepth, 0, WORLD_H);
     activeShot.resultMessage = `${weapon.label} burrows underground before exploding.`;
   }
 
@@ -763,7 +791,7 @@ function resolveImpact(shot, x, y, spawned) {
 
   if (weapon.cluster) {
     for (const offset of [-42, 0, 42]) {
-      const popX = clamp(x + offset, 0, WIDTH - 1);
+      const popX = clamp(x + offset, 0, WORLD_W - 1);
       const popY = terrainYAt(popX) - 8;
       processExplosion(popX, popY, "volcanoShard", 0.82);
     }
@@ -804,7 +832,7 @@ function spawnVolcanoShards(shot, x, y, spawned) {
 
 function teleportTank(owner, x) {
   const tank = tanks[owner];
-  const safeX = clamp(x, 35, WIDTH - 35);
+  const safeX = clamp(x, 35, WORLD_W - 35);
   flattenLandingZone(safeX, 28);
   tank.x = safeX;
   settleTanks();
@@ -821,7 +849,7 @@ function moveCurrentTank(direction) {
     return;
   }
 
-  const nextX = clamp(tank.x + direction * MOVE_STEP, 35, WIDTH - 35);
+  const nextX = clamp(tank.x + direction * Math.round(MOVE_STEP / worldScale), 35, WORLD_W - 35);
   if (nextX === tank.x) {
     messageEl.textContent = `${label(currentTurn)} cannot move farther that way.`;
     return;
@@ -851,13 +879,13 @@ function finishShot(owner) {
 
 function craterTerrain(cx, cy, radius) {
   const start = Math.max(0, Math.floor(cx - radius));
-  const end = Math.min(WIDTH - 1, Math.ceil(cx + radius));
+  const end = Math.min(WORLD_W - 1, Math.ceil(cx + radius));
   for (let x = start; x <= end; x += 1) {
     const dx = x - cx;
     const depth = Math.sqrt(Math.max(0, radius * radius - dx * dx));
     const craterFloor = cy + depth * 0.72;
     if (terrain[x] < craterFloor) {
-      terrain[x] = clamp(craterFloor, 0, HEIGHT + 40);
+      terrain[x] = clamp(craterFloor, 0, WORLD_H + 40);
     }
   }
 }
@@ -865,13 +893,13 @@ function craterTerrain(cx, cy, radius) {
 function raiseTerrainMound(cx, radius) {
   const centerY = terrainYAt(cx);
   const start = Math.max(0, Math.floor(cx - radius));
-  const end = Math.min(WIDTH - 1, Math.ceil(cx + radius));
+  const end = Math.min(WORLD_W - 1, Math.ceil(cx + radius));
   for (let x = start; x <= end; x += 1) {
     const dx = x - cx;
     const lift = Math.sqrt(Math.max(0, radius * radius - dx * dx)) * 0.78;
     const moundTop = centerY - lift;
     if (terrain[x] > moundTop) {
-      terrain[x] = clamp(moundTop, 160, HEIGHT - TURN_STRIP_HEIGHT - 10);
+      terrain[x] = clamp(moundTop, WORLD_H * 0.25, WORLD_H - TURN_STRIP_HEIGHT / worldScale - 10);
     }
   }
 }
@@ -956,6 +984,7 @@ function draw() {
   if (screenShake > 0) {
     ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
   }
+  ctx.scale(worldScale, worldScale);
   drawSky();
   drawTerrain();
   drawCraters();
@@ -969,19 +998,19 @@ function draw() {
 
 function drawSky() {
   const theme = terrainModes[configuredTerrain];
-  const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  const sky = ctx.createLinearGradient(0, 0, 0, WORLD_H);
   sky.addColorStop(0, theme.sky[0]);
   sky.addColorStop(0.62, theme.sky[1]);
   sky.addColorStop(1, theme.sky[2]);
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
   if (theme.stars.count > 0) {
     ctx.fillStyle = `rgba(242, 240, 223, ${theme.stars.alpha})`;
     for (let i = 0; i < theme.stars.count; i += 1) {
-      const x = (i * 173) % WIDTH;
-      const y = 24 + ((i * 97) % 190);
-      ctx.fillRect(x, y, 2, 2);
+      const x = (i * 173) % WORLD_W;
+      const y = 24 + ((i * 97) % Math.round(WORLD_H * 0.3));
+      ctx.fillRect(x, y, 2 / worldScale, 2 / worldScale);
     }
   }
 
@@ -989,8 +1018,8 @@ function drawSky() {
 }
 
 function drawWindArrow() {
-  const x = WIDTH / 2;
-  const y = 42;
+  const x = WORLD_W / 2;
+  const y = Math.round(42 * WORLD_H / HEIGHT);
   const length = clamp(Math.abs(wind) * 2.1, 12, 92);
   const dir = wind >= 0 ? 1 : -1;
   ctx.strokeStyle = "rgba(242, 193, 78, 0.82)";
@@ -1012,17 +1041,17 @@ function drawTerrain() {
   const theme = terrainModes[configuredTerrain];
 
   ctx.beginPath();
-  ctx.moveTo(0, HEIGHT);
-  for (let x = 0; x < WIDTH; x += 1) {
+  ctx.moveTo(0, WORLD_H);
+  for (let x = 0; x < WORLD_W; x += 1) {
     ctx.lineTo(x, terrain[x]);
   }
-  ctx.lineTo(WIDTH, HEIGHT);
+  ctx.lineTo(WORLD_W, WORLD_H);
   ctx.closePath();
   ctx.fillStyle = theme.ground;
   ctx.fill();
 
   ctx.beginPath();
-  for (let x = 0; x < WIDTH; x += 1) {
+  for (let x = 0; x < WORLD_W; x += 1) {
     if (x === 0) ctx.moveTo(x, terrain[x]);
     else ctx.lineTo(x, terrain[x]);
   }
@@ -1032,9 +1061,9 @@ function drawTerrain() {
 
   ctx.globalAlpha = 0.28;
   ctx.fillStyle = theme.sub;
-  for (let x = 0; x < WIDTH; x += 28) {
+  for (let x = 0; x < WORLD_W; x += 28) {
     const y = terrain[x] + 26 + ((x * 17) % 34);
-    ctx.fillRect(x, y, 16, HEIGHT - y);
+    ctx.fillRect(x, y, 16, WORLD_H - y);
   }
   ctx.globalAlpha = 1;
 }
