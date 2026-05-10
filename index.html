@@ -29,6 +29,10 @@
                 <strong id="redFuel">8</strong>
                 <small>fuel</small>
               </div>
+              <div class="coin-display">
+                <strong id="redCoins">0</strong>
+                <small>coins</small>
+              </div>
             </div>
             <div class="score blue">
               <span>Blue</span>
@@ -47,6 +51,10 @@
               <div>
                 <strong id="blueFuel">8</strong>
                 <small>fuel</small>
+              </div>
+              <div class="coin-display">
+                <strong id="blueCoins">0</strong>
+                <small>coins</small>
               </div>
             </div>
           </div>
@@ -80,6 +88,7 @@
             <div class="weapon-grid" id="weaponGrid" aria-label="Weapon choices"></div>
           </div>
           <button id="fireButton" type="button">Fire</button>
+          <button id="storeButton" type="button">Store</button>
         </div>
 
         <div class="control-group">
@@ -197,6 +206,26 @@
           <section>
             <h3>Weapons</h3>
             <ul id="helpWeapons"></ul>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="storeModal" role="dialog" aria-modal="true" aria-labelledby="storeTitle">
+      <section class="modal store-modal">
+        <div class="modal-header">
+          <h2 id="storeTitle"><span id="storePlayerLabel">Red</span>'s Store</h2>
+          <span class="store-coin-display">🪙 <strong id="storeCoins">0</strong> coins</span>
+          <button id="closeStoreButton" type="button">Close</button>
+        </div>
+        <div class="store-content">
+          <section class="store-section">
+            <h3>Weapons</h3>
+            <div id="storeWeaponList" class="store-list"></div>
+          </section>
+          <section class="store-section">
+            <h3>Supplies</h3>
+            <div id="storeSupplyList" class="store-list store-list--supplies"></div>
           </section>
         </div>
       </section>
