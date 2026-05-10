@@ -149,6 +149,20 @@
               <option value="large">Large</option>
             </select>
           </label>
+          <label>
+            Wind
+            <select id="windSelect">
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <label>
+            Aiming Help
+            <select id="aimingHelpSelect">
+              <option value="on">On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
         </div>
         <button id="startBattleButton" class="primary-button" type="button">Start Battle</button>
       </section>
@@ -168,6 +182,17 @@
           <section>
             <h3>Battle Rules</h3>
             <p>Wind pushes shots sideways. Gravity changes the arc. Shield absorbs damage before health. Fuel is spent one point per move and does not refill during the battle.</p>
+          </section>
+          <section>
+            <h3>Battle Setup Options</h3>
+            <ul>
+              <li><strong>Gravity</strong> — Normal is standard. Low makes shots float longer and arc wider. High makes them drop fast and hit hard.</li>
+              <li><strong>Terrain</strong> — Sets the landscape shape and visual theme. Snowy Mountains and Volcano are jagged. Moon is bowl-shaped. Jungle has a central ridge. Arctic and Candy Land use stepped plateaus. Plains and Desert roll gently.</li>
+              <li><strong>Vertical Spread</strong> — Balanced places both tanks at similar heights. Uneven or Extreme can put one tank much higher than the other.</li>
+              <li><strong>Distance</strong> — Small is the classic map. Medium and Large zoom out so the tanks start farther apart. Shot power is boosted slightly on Medium and Large to match.</li>
+              <li><strong>Wind</strong> — On means a random wind blows every battle and pushes shots sideways. Off turns wind off completely.</li>
+              <li><strong>Aiming Help</strong> — On shows dotted trajectory hints so you can see roughly where your shot will go. Off hides them for a harder challenge.</li>
+            </ul>
           </section>
           <section>
             <h3>Weapons</h3>

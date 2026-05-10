@@ -31,6 +31,8 @@ const gravityValue = document.querySelector("#gravityValue");
 const terrainSelect = document.querySelector("#terrainSelect");
 const spreadSelect = document.querySelector("#spreadSelect");
 const distanceSelect = document.querySelector("#distanceSelect");
+const windSelect = document.querySelector("#windSelect");
+const aimingHelpSelect = document.querySelector("#aimingHelpSelect");
 const terrainValue = document.querySelector("#terrainValue");
 const helpWeapons = document.querySelector("#helpWeapons");
 
@@ -51,9 +53,9 @@ let WORLD_H = HEIGHT;
 let worldScale = 1;
 
 const distanceModes = {
-  small:  { label: "Small",  sizeScale: 1.0 },
-  medium: { label: "Medium", sizeScale: 1.5 },
-  large:  { label: "Large",  sizeScale: 2.0 },
+  small:  { label: "Small",  sizeScale: 1.0, powerBoost: 1.0  },
+  medium: { label: "Medium", sizeScale: 1.5, powerBoost: 1.25 },
+  large:  { label: "Large",  sizeScale: 2.0, powerBoost: 1.5  },
 };
 
 const gravityModes = {
@@ -63,14 +65,14 @@ const gravityModes = {
 };
 
 const terrainModes = {
-  plains:  { label: "Grassy Plains",    roughness: 0.65, sky: ["#1a6ba0", "#4a9fd4", "#7ec8e3"], stars: { count: 0,  alpha: 0.0 }, ground: "#4a7c42", surface: "#7acc5a", sub: "#263224" },
-  desert:  { label: "Sandy Desert",     roughness: 0.75, sky: ["#8b3a00", "#c96a00", "#e89820"], stars: { count: 0,  alpha: 0.0 }, ground: "#c49a28", surface: "#e8d070", sub: "#8a6a10" },
-  snow:    { label: "Snowy Mountains",  roughness: 1.3,  sky: ["#7aabcc", "#a8cfe0", "#c8e0ee"], stars: { count: 10, alpha: 0.3 }, ground: "#6a7d8e", surface: "#e8f0f8", sub: "#3a4a55" },
-  moon:    { label: "Moon",             roughness: 0.9,  sky: ["#000005", "#050510", "#0a0a1a"], stars: { count: 80, alpha: 0.9 }, ground: "#6e6e6e", surface: "#a0a0a0", sub: "#3a3a3a" },
-  volcano: { label: "Volcano",          roughness: 1.4,  sky: ["#1a0000", "#3d0800", "#1a0505"], stars: { count: 15, alpha: 0.4 }, ground: "#1e1008", surface: "#ff4400", sub: "#0a0505" },
-  candy:   { label: "Candy Land",       roughness: 0.6,  sky: ["#ff99cc", "#ffb3d9", "#ffd6ec"], stars: { count: 0,  alpha: 0.0 }, ground: "#aa44ee", surface: "#ff88ee", sub: "#882299" },
-  jungle:  { label: "Jungle",           roughness: 1.0,  sky: ["#0a2010", "#153020", "#0a1a10"], stars: { count: 5,  alpha: 0.2 }, ground: "#1e5c1e", surface: "#3dcc3d", sub: "#0a2a0a" },
-  arctic:  { label: "Arctic Ice",       roughness: 0.8,  sky: ["#c5dced", "#daeaf5", "#edf4fa"], stars: { count: 0,  alpha: 0.0 }, ground: "#8ab8cc", surface: "#e0f4ff", sub: "#5a8a9e" },
+  plains:  { label: "Grassy Plains",    roughness: 0.65, sky: ["#1a6ba0", "#4a9fd4", "#7ec8e3"], stars: { count: 0,  alpha: 0.0 }, ground: "#4a7c42", surface: "#7acc5a", sub: "#263224", aimDot: "rgba(255, 80,  0,   0.85)" },
+  desert:  { label: "Sandy Desert",     roughness: 0.75, sky: ["#8b3a00", "#c96a00", "#e89820"], stars: { count: 0,  alpha: 0.0 }, ground: "#c49a28", surface: "#e8d070", sub: "#8a6a10", aimDot: "rgba(60,  140, 255, 0.90)" },
+  snow:    { label: "Snowy Mountains",  roughness: 1.3,  sky: ["#7aabcc", "#a8cfe0", "#c8e0ee"], stars: { count: 10, alpha: 0.3 }, ground: "#6a7d8e", surface: "#e8f0f8", sub: "#3a4a55", aimDot: "rgba(255, 100, 0,   0.90)" },
+  moon:    { label: "Moon",             roughness: 0.9,  sky: ["#000005", "#050510", "#0a0a1a"], stars: { count: 80, alpha: 0.9 }, ground: "#6e6e6e", surface: "#a0a0a0", sub: "#3a3a3a", aimDot: "rgba(255, 220, 50,  0.90)" },
+  volcano: { label: "Volcano",          roughness: 1.4,  sky: ["#1a0000", "#3d0800", "#1a0505"], stars: { count: 15, alpha: 0.4 }, ground: "#1e1008", surface: "#ff4400", sub: "#0a0505", aimDot: "rgba(50,  255, 180, 0.90)" },
+  candy:   { label: "Candy Land",       roughness: 0.6,  sky: ["#ff99cc", "#ffb3d9", "#ffd6ec"], stars: { count: 0,  alpha: 0.0 }, ground: "#aa44ee", surface: "#ff88ee", sub: "#882299", aimDot: "rgba(50,  200, 50,  0.90)" },
+  jungle:  { label: "Jungle",           roughness: 1.0,  sky: ["#0a2010", "#153020", "#0a1a10"], stars: { count: 5,  alpha: 0.2 }, ground: "#1e5c1e", surface: "#3dcc3d", sub: "#0a2a0a", aimDot: "rgba(255, 230, 0,   0.90)" },
+  arctic:  { label: "Arctic Ice",       roughness: 0.8,  sky: ["#c5dced", "#daeaf5", "#edf4fa"], stars: { count: 0,  alpha: 0.0 }, ground: "#8ab8cc", surface: "#e0f4ff", sub: "#5a8a9e", aimDot: "rgba(255, 90,  0,   0.90)" },
 };
 
 const spreadModes = {
@@ -217,6 +219,8 @@ let configuredTerrain = "plains";
 let configuredSpread = "balanced";
 let configuredGravity = "normal";
 let configuredDistance = "small";
+let configuredWind = "on";
+let configuredAimingHelp = "on";
 
 function makeTank(id, color, accent, x, angle) {
   return {
@@ -244,11 +248,13 @@ function newBattle(resetMatch = false) {
   configuredSpread = spreadSelect.value;
   configuredGravity = gravitySelect.value;
   configuredDistance = distanceSelect.value;
+  configuredWind = windSelect.value;
+  configuredAimingHelp = aimingHelpSelect.value;
   const dm = distanceModes[configuredDistance];
   WORLD_W = Math.round(WIDTH * dm.sizeScale);
   WORLD_H = Math.round(HEIGHT * dm.sizeScale);
   worldScale = WIDTH / WORLD_W;
-  wind = Math.round((Math.random() * 2 - 1) * 44);
+  wind = configuredWind === "on" ? Math.round((Math.random() * 2 - 1) * 44) : 0;
   projectiles = [];
   particles = [];
   craters = [];
@@ -424,7 +430,7 @@ function updateHud() {
   blueShieldEl.textContent = Math.max(0, Math.round(tanks.blue.shield));
   redFuelEl.textContent = Math.max(0, tanks.red.fuel);
   blueFuelEl.textContent = Math.max(0, tanks.blue.fuel);
-  windValue.textContent = wind === 0 ? "Calm" : `${Math.abs(wind)} ${wind > 0 ? "east" : "west"}`;
+  windValue.textContent = configuredWind === "off" ? "Off" : wind === 0 ? "Calm" : `${Math.abs(wind)} ${wind > 0 ? "east" : "west"}`;
   gravityValue.textContent = gravityModes[configuredGravity].label;
   terrainValue.textContent = terrainModes[configuredTerrain].label;
 }
@@ -631,7 +637,7 @@ function fire() {
   tank.weapon = weaponSelect.value;
   const weapon = weapons[tank.weapon];
   const aim = getAimInfo(tank, tank.angle);
-  const speed = tank.power * weapon.speed;
+  const speed = tank.power * weapon.speed * distanceModes[configuredDistance].powerBoost;
 
   activeShot = {
     owner: currentTurn,
@@ -989,7 +995,7 @@ function draw() {
   drawTerrain();
   drawCraters();
   drawProjectiles();
-  if (projectiles.length === 0 && !battleOver) drawAimArc(tanks[currentTurn]);
+  if (projectiles.length === 0 && !battleOver && configuredAimingHelp === "on") drawAimArc(tanks[currentTurn]);
   drawTanks();
   drawParticles();
   ctx.restore();
@@ -1178,12 +1184,12 @@ function drawTankBars(tank) {
 function drawAimArc(tank) {
   const weapon = weapons[weaponSelect.value];
   const aim = getAimInfo(tank, Number(angleSlider.value));
-  const speed = Number(powerSlider.value) * weapon.speed;
+  const speed = Number(powerSlider.value) * weapon.speed * distanceModes[configuredDistance].powerBoost;
   let px = aim.muzzleX;
   let py = aim.muzzleY;
   let vx = Math.cos(aim.radians) * speed;
   let vy = -Math.sin(aim.radians) * speed;
-  ctx.fillStyle = weapon.storm ? "rgba(180, 167, 255, 0.58)" : "rgba(242, 240, 223, 0.45)";
+  ctx.fillStyle = weapon.storm ? "rgba(180, 167, 255, 0.75)" : terrainModes[configuredTerrain].aimDot;
   for (let i = 0; i < 26; i += 1) {
     const fakeShot = { weaponKey: weaponSelect.value, age: i * 0.06 };
     vx += wind * 0.06;
