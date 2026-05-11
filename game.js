@@ -40,6 +40,7 @@ const spreadSelect = document.querySelector("#spreadSelect");
 const distanceSelect = document.querySelector("#distanceSelect");
 const windSelect = document.querySelector("#windSelect");
 const aimingHelpSelect = document.querySelector("#aimingHelpSelect");
+const testingCheckbox = document.querySelector("#testingCheckbox");
 const terrainValue = document.querySelector("#terrainValue");
 const helpWeapons = document.querySelector("#helpWeapons");
 
@@ -123,25 +124,34 @@ const weapons = {
     draw: "cluster",
     price: 500,
   },
-  lowGravity: {
-    label: "Low-G Shot",
-    radius: 32,
-    damage: 38,
-    speed: 5.25,
-    color: "#9ae6ff",
-    gravityScale: 0.38,
-    draw: "lowGravity",
-    price: 300,
-  },
-  highGravity: {
-    label: "High-G Shot",
+  airstrike: {
+    label: "Airstrike",
     radius: 38,
-    damage: 50,
-    speed: 4.9,
-    color: "#ffbd6f",
-    gravityScale: 1.85,
-    draw: "highGravity",
-    price: 300,
+    damage: 44,
+    speed: 5.1,
+    color: "#ff4444",
+    draw: "airstrike",
+    price: 1200,
+    airstrike: true,
+  },
+  airstrikeShard: {
+    label: "Airstrike Bomb",
+    radius: 38,
+    damage: 44,
+    speed: 1,
+    color: "#ff4444",
+    draw: "airstrikeShard",
+    shard: true,
+  },
+  sinkhole: {
+    label: "Sinkhole",
+    radius: 30,
+    damage: 0,
+    speed: 5.0,
+    color: "#8b5c2a",
+    draw: "sinkhole",
+    price: 900,
+    sinkhole: true,
   },
   bouncy: {
     label: "Bouncy Bomb",
@@ -212,15 +222,15 @@ const weapons = {
     shard: true,
     draw: "volcanoShard",
   },
-  gravityStorm: {
-    label: "Gravity Storm",
-    radius: 40,
-    damage: 46,
-    speed: 5,
-    color: "#b4a7ff",
-    storm: true,
-    draw: "gravityStorm",
-    price: 1000,
+  blackHole: {
+    label: "Black Hole",
+    radius: 62,
+    damage: 72,
+    speed: 4.8,
+    color: "#9933ff",
+    draw: "blackHole",
+    price: 1500,
+    blackHole: true,
   },
 };
 
@@ -240,6 +250,8 @@ let configuredGravity = "normal";
 let configuredDistance = "small";
 let configuredWind = "on";
 let configuredAimingHelp = "on";
+let configuredTesting = false;
+let activeBlackHole = null;
 
 function makeTank(id, color, accent, x, angle) {
   return {
@@ -271,6 +283,8 @@ function newBattle(resetMatch = false) {
   configuredDistance = distanceSelect.value;
   configuredWind = windSelect.value;
   configuredAimingHelp = aimingHelpSelect.value;
+  configuredTesting = testingCheckbox.checked;
+  activeBlackHole = null;
   const dm = distanceModes[configuredDistance];
   WORLD_W = Math.round(WIDTH * dm.sizeScale);
   WORLD_H = Math.round(HEIGHT * dm.sizeScale);
@@ -297,6 +311,14 @@ function newBattle(resetMatch = false) {
   tanks.red.power = 62;
   tanks.blue.power = 62;
   settleTanks();
+  if (configuredTesting) {
+    for (const tank of Object.values(tanks)) {
+      tank.coins = 99999;
+      for (const [key, w] of Object.entries(weapons)) {
+        if (!w.shard) tank.unlockedWeapons.add(key);
+      }
+    }
+  }
   syncControlsToTurn();
   updateHud();
   messageEl.textContent = `${label(currentTurn)} aims first. Watch the wind and gravity.`;
@@ -493,15 +515,15 @@ function renderHelpWeapons() {
       missile: "Baby Missile: reliable starter shot with medium damage and crater size.",
       big: "Big Bomb: slower, bigger, spiked, and strong when it lands close.",
       cluster: "Cluster Pop: three small impacts that cover a wider patch.",
-      lowGravity: "Low-G Shot: floats longer and reaches farther.",
-      highGravity: "High-G Shot: drops fast and hits with a heavier punch.",
       bouncy: "Bouncy Bomb: skips off terrain before exploding.",
       drill: "Drill: burrows underground, opens a deep hole, and can cause fall damage.",
       dirtMover: "Dirt Mover: raises a mound for cover, ramps, traps, or escape routes.",
       teleport: "Teleport Shot: moves your tank to the impact point.",
       shieldBreaker: "Shield Breaker: strips shield energy before health damage.",
       volcano: "Volcano: damages on first impact, then erupts into falling fire.",
-      gravityStorm: "Gravity Storm: changes gravity during flight for wild arcs.",
+      airstrike: "Airstrike: calls in six bombs that rain down across a wide area.",
+      sinkhole: "Sinkhole: collapses the ground under the impact point, dropping any tank standing there.",
+      blackHole: "Black Hole: opens a gravity well that drags both tanks in for three seconds, then explodes.",
     };
     item.textContent = descriptions[key] || weapon.label;
     helpWeapons.append(item);
@@ -647,6 +669,50 @@ function drawWeaponPreview(preview, key) {
     g.beginPath();
     g.arc(0, 0, weapon.draw === "lowGravity" ? 19 : 10, 0, Math.PI * 2);
     g.stroke();
+  } else if (weapon.draw === "airstrike" || weapon.draw === "airstrikeShard") {
+    // Three bombs falling with downward chevron
+    for (let i = -1; i <= 1; i += 1) {
+      g.fillStyle = weapon.color;
+      g.beginPath();
+      g.ellipse(i * 11, -6 + Math.abs(i) * 4, 5, 7, 0, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.strokeStyle = weapon.color;
+    g.lineWidth = 3;
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(-8, 6); g.lineTo(0, 14); g.lineTo(8, 6);
+    g.stroke();
+  } else if (weapon.draw === "sinkhole") {
+    // Concentric ellipses shrinking downward (funnel)
+    for (let i = 0; i < 3; i += 1) {
+      g.strokeStyle = weapon.color;
+      g.globalAlpha = 0.4 + i * 0.3;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.ellipse(0, -8 + i * 8, 16 - i * 5, 5 - i, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    g.strokeStyle = weapon.color;
+    g.lineWidth = 3;
+    g.lineCap = "round";
+    g.beginPath();
+    g.moveTo(-6, 8); g.lineTo(0, 16); g.lineTo(6, 8);
+    g.stroke();
+  } else if (weapon.draw === "blackHole") {
+    // Dark pulsing ring with event horizon
+    for (let i = 2; i >= 0; i -= 1) {
+      g.strokeStyle = `rgba(153, 51, 255, ${0.35 + i * 0.25})`;
+      g.lineWidth = 2 + i;
+      g.beginPath();
+      g.arc(0, 0, 7 + i * 5, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.fillStyle = "#050005";
+    g.beginPath();
+    g.arc(0, 0, 7, 0, Math.PI * 2);
+    g.fill();
   } else {
     g.fillStyle = weapon.color;
     g.beginPath();
@@ -700,11 +766,13 @@ function makeProjectile(settings) {
 }
 
 function update(dt) {
-  fireButton.disabled = projectiles.length > 0 || battleOver;
-  storeButton.disabled = projectiles.length > 0 || battleOver;
-  moveLeftButton.disabled = projectiles.length > 0 || battleOver || tanks[currentTurn].fuel <= 0;
+  const busy = projectiles.length > 0 || !!activeBlackHole;
+  fireButton.disabled = busy || battleOver;
+  storeButton.disabled = busy || battleOver;
+  moveLeftButton.disabled = busy || battleOver || tanks[currentTurn].fuel <= 0;
   moveRightButton.disabled = moveLeftButton.disabled;
   if (projectiles.length > 0) updateProjectiles(dt);
+  if (activeBlackHole) updateBlackHole(dt);
 
   for (const particle of particles) {
     particle.x += particle.vx * dt;
@@ -732,7 +800,7 @@ function updateProjectiles(dt) {
   }
   projectiles = survivors;
 
-  if (projectiles.length === 0 && activeShot && !battleOver) {
+  if (projectiles.length === 0 && activeShot && !battleOver && !activeBlackHole) {
     finishShot(activeShot.owner);
   }
 }
@@ -800,6 +868,53 @@ function bounceProjectile(shot, x) {
   messageEl.textContent = `Bouncy Bomb skips. ${shot.bounces} bounce${shot.bounces === 1 ? "" : "s"} left.`;
 }
 
+function updateBlackHole(dt) {
+  if (!activeBlackHole || battleOver) return;
+  activeBlackHole.age += dt;
+
+  for (const tank of Object.values(tanks)) {
+    const dx = activeBlackHole.x - tank.x;
+    const dist = Math.abs(dx);
+    const pull = Math.min(130, 4500 / (dist + 55)) * dt;
+    tank.x = clamp(tank.x + Math.sign(dx) * pull, 35, WORLD_W - 35);
+    tank.y = Math.min(terrainYAt(tank.x) - TANK_HEIGHT / 2, tankCenterFloor());
+  }
+
+  if (activeBlackHole.age >= 3) {
+    const bh = activeBlackHole;
+    activeBlackHole = null;
+    processExplosion(bh.x, bh.y, "blackHole", 1);
+    finishShot(bh.owner);
+  }
+}
+
+function spawnAirstrikeShards(shot, x, spawned) {
+  const spread = 280 * (WORLD_W / WIDTH);
+  for (let i = 0; i < 6; i += 1) {
+    const offsetX = (Math.random() - 0.5) * spread;
+    const yStart = -(60 + i * 100 + Math.random() * 60);
+    spawned.push(makeProjectile({
+      owner: shot.owner,
+      weaponKey: "airstrikeShard",
+      x: x + offsetX,
+      y: yStart,
+      vx: (Math.random() - 0.5) * 18,
+      vy: 500 + Math.random() * 90,
+    }));
+  }
+}
+
+function applySinkhole(cx) {
+  const radius = Math.round(110 * WORLD_W / WIDTH);
+  const start = Math.max(0, Math.floor(cx - radius));
+  const end = Math.min(WORLD_W - 1, Math.ceil(cx + radius));
+  for (let x = start; x <= end; x += 1) {
+    const t = Math.abs(x - cx) / radius;
+    const pullDown = 1 - t * t;
+    terrain[x] = terrain[x] + (WORLD_H * 0.97 - terrain[x]) * pullDown;
+  }
+}
+
 function resolveImpact(shot, x, y, spawned) {
   const weapon = weapons[shot.weaponKey];
 
@@ -815,6 +930,30 @@ function resolveImpact(shot, x, y, spawned) {
     settleTanks();
     updateHud();
     activeShot.resultMessage = "Dirt Mover builds a new mound.";
+    return;
+  }
+
+  if (weapon.airstrike) {
+    spawnAirstrikeShards(shot, x, spawned);
+    activeShot.resultMessage = "Airstrike called! Bombs incoming!";
+    return;
+  }
+
+  if (weapon.sinkhole) {
+    applySinkhole(x);
+    addParticles(x, terrainYAt(x), weapon.color, 60);
+    screenShake = Math.max(screenShake, 14);
+    settleTanks({ fallDamage: true });
+    updateHud();
+    activeShot.resultMessage = "Sinkhole! The ground opens up!";
+    return;
+  }
+
+  if (weapon.blackHole) {
+    activeBlackHole = { x, y, age: 0, owner: shot.owner };
+    addParticles(x, y, weapon.color, 40);
+    screenShake = Math.max(screenShake, 6);
+    activeShot.resultMessage = "Black Hole opens… brace yourself.";
     return;
   }
 
@@ -1033,6 +1172,7 @@ function draw() {
   drawSky();
   drawTerrain();
   drawCraters();
+  drawBlackHole();
   drawProjectiles();
   if (projectiles.length === 0 && !battleOver && configuredAimingHelp === "on") drawAimArc(tanks[currentTurn]);
   drawTanks();
@@ -1273,8 +1413,10 @@ function drawProjectile(shot) {
   else if (weapon.draw === "teleport") drawTeleportProjectile(weapon.color);
   else if (weapon.draw === "shieldBreaker") drawShieldBreakerProjectile(weapon.color);
   else if (weapon.draw === "volcano" || weapon.draw === "volcanoShard") drawVolcanoProjectile(weapon.color, weapon.draw === "volcanoShard");
-  else if (weapon.draw === "gravityStorm") drawGravityStormProjectile(weapon.color);
-  else if (weapon.draw === "lowGravity" || weapon.draw === "highGravity") drawGravityProjectile(weapon.color, weapon.draw === "lowGravity");
+  else if (weapon.draw === "airstrike") drawMissileProjectile(weapon.color);
+  else if (weapon.draw === "airstrikeShard") drawAirstrikeShardProjectile(weapon.color);
+  else if (weapon.draw === "sinkhole") drawMissileProjectile(weapon.color);
+  else if (weapon.draw === "blackHole") drawBlackHoleProjectile(weapon.color);
   else drawMissileProjectile(weapon.color);
 
   ctx.restore();
@@ -1442,6 +1584,63 @@ function drawGravityStormProjectile(color) {
     ctx.ellipse(0, 0, 5 + i * 4, 9 - i, i * 0.8, 0, Math.PI * 2);
     ctx.stroke();
   }
+}
+
+function drawAirstrikeShardProjectile(color) {
+  ctx.fillStyle = "#222";
+  ctx.fillRect(-3, -10, 6, 5);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 5, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBlackHoleProjectile(color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#050005";
+  ctx.beginPath();
+  ctx.arc(0, 0, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBlackHole() {
+  if (!activeBlackHole) return;
+  const { x, y, age } = activeBlackHole;
+  const pulse = 0.5 + 0.5 * Math.sin(age * 10);
+  const outerRadius = 32 + pulse * 8;
+
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, outerRadius);
+  grad.addColorStop(0,    "rgba(5,   0, 20, 1)");
+  grad.addColorStop(0.42, "rgba(80,  0, 140, 0.88)");
+  grad.addColorStop(1,    "rgba(120, 20, 200, 0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, outerRadius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(age * 2.8);
+  ctx.strokeStyle = `rgba(190, 110, 255, ${0.55 + pulse * 0.35})`;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([9, 7]);
+  ctx.beginPath();
+  ctx.arc(0, 0, outerRadius * 0.62, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Countdown arc around the outside
+  const progress = 1 - age / 3;
+  ctx.strokeStyle = `rgba(220, 180, 255, ${0.55 + pulse * 0.3})`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(x, y, outerRadius + 7, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+  ctx.stroke();
 }
 
 function drawTurnStrip() {
