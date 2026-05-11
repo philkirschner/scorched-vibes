@@ -267,6 +267,7 @@ function makeTank(id, color, accent, x, angle) {
     shield: 40,
     fuel: STARTING_FUEL,
     coins: 0,
+    boostedTurns: 0,
     unlockedWeapons: new Set(["missile", "big"]),
   };
 }
@@ -305,6 +306,7 @@ function newBattle(resetMatch = false) {
     tank.health = 100;
     tank.shield = 40;
     tank.fuel = STARTING_FUEL;
+    tank.boostedTurns = 0;
   }
   tanks.red.angle = 45;
   tanks.blue.angle = 135;
@@ -483,8 +485,15 @@ function updateHud() {
 
 function renderWeaponButtons() {
   weaponGrid.innerHTML = "";
-  for (const [key, weapon] of Object.entries(weapons)) {
-    if (weapon.shard) continue;
+  const sortedEntries = Object.entries(weapons)
+    .filter(([, w]) => !w.shard)
+    .sort(([, a], [, b]) => {
+      if (a.starter && !b.starter) return -1;
+      if (!a.starter && b.starter) return 1;
+      if (a.starter && b.starter) return 0;
+      return (a.price ?? 0) - (b.price ?? 0);
+    });
+  for (const [key, weapon] of sortedEntries) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "weapon-button";
@@ -875,7 +884,7 @@ function updateBlackHole(dt) {
   for (const tank of Object.values(tanks)) {
     const dx = activeBlackHole.x - tank.x;
     const dist = Math.abs(dx);
-    const pull = Math.min(130, 4500 / (dist + 55)) * dt;
+    const pull = Math.min(320, 12000 / (dist + 40)) * dt;
     tank.x = clamp(tank.x + Math.sign(dx) * pull, 35, WORLD_W - 35);
     tank.y = Math.min(terrainYAt(tank.x) - TANK_HEIGHT / 2, tankCenterFloor());
   }
@@ -1045,6 +1054,7 @@ function finishShot(owner) {
     return;
   }
 
+  if (tanks[owner].boostedTurns > 0) tanks[owner].boostedTurns -= 1;
   currentTurn = owner === "red" ? "blue" : "red";
   syncControlsToTurn();
   updateHud();
@@ -1080,12 +1090,13 @@ function raiseTerrainMound(cx, radius) {
 }
 
 function applyDamage(x, y, weapon, scale = 1) {
+  const boostMult = (activeShot?.owner && tanks[activeShot.owner]?.boostedTurns > 0) ? 1.5 : 1;
   for (const tank of Object.values(tanks)) {
     const d = distance({ x, y }, tank);
     const damageRadius = weapon.radius * 1.6 * scale;
     if (d < damageRadius) {
       const hit = Math.max(0, 1 - d / damageRadius);
-      const rawDamage = Math.round(weapon.damage * scale * hit);
+      const rawDamage = Math.round(weapon.damage * scale * hit * boostMult);
       const shieldDamage = Math.round((weapon.shieldDamage ?? rawDamage * 0.8) * hit);
       let healthDamage = rawDamage;
       let shieldLost = 0;
@@ -1115,6 +1126,8 @@ function applyDamage(x, y, weapon, scale = 1) {
 }
 
 function applyDirectDamage(tank, amount, prefix) {
+  const boostMult = (activeShot?.owner && tanks[activeShot.owner]?.boostedTurns > 0) ? 1.5 : 1;
+  amount = Math.round(amount * boostMult);
   let remaining = amount;
   if (tank.shield > 0) {
     const shieldLoss = Math.min(tank.shield, remaining);
@@ -1286,6 +1299,22 @@ function drawTank(tank) {
     ctx.beginPath();
     ctx.arc(0, -8, 29, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  if (tank.boostedTurns > 0) {
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 160);
+    ctx.strokeStyle = `rgba(255, 160, 20, ${pulse})`;
+    ctx.lineWidth = 3.5;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.arc(0, -8, 37, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255, 185, 40, ${0.82 + 0.18 * pulse})`;
+    ctx.font = `bold 11px Inter, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(`⚡${tank.boostedTurns}`, 0, -52);
   }
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
@@ -1759,8 +1788,9 @@ function renderStoreItems() {
   const supplyList = document.querySelector("#storeSupplyList");
   supplyList.innerHTML = "";
   const supplies = [
-    { id: "health", label: "+50 Health", price: 250, icon: "❤️" },
-    { id: "fuel",   label: "+5 Fuel",    price: 100, icon: "⛽" },
+    { id: "health", label: "+50 Health",                     price: 250, icon: "❤️" },
+    { id: "fuel",   label: "+5 Fuel",                        price: 100, icon: "⛽" },
+    { id: "boost",  label: "Damage Boost — +50% for 3 turns", price: 800, icon: "⚡" },
   ];
   for (const supply of supplies) {
     const canAfford = tank.coins >= supply.price;
@@ -1803,6 +1833,10 @@ function buyItem(type, key) {
     if (tank.coins < 100) return;
     tank.coins -= 100;
     tank.fuel += 5;
+  } else if (type === "boost") {
+    if (tank.coins < 800) return;
+    tank.coins -= 800;
+    tank.boostedTurns = 3;
   }
   updateHud();
   renderStoreItems();
