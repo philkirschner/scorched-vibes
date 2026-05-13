@@ -41,6 +41,9 @@ const distanceSelect = document.querySelector("#distanceSelect");
 const windSelect = document.querySelector("#windSelect");
 const aimingHelpSelect = document.querySelector("#aimingHelpSelect");
 const testingCheckbox = document.querySelector("#testingCheckbox");
+const playersSelect = document.querySelector("#playersSelect");
+const cpuDifficultySelect = document.querySelector("#cpuDifficultySelect");
+const cpuDifficultyGroup = document.querySelector("#cpuDifficultyGroup");
 const terrainValue = document.querySelector("#terrainValue");
 const helpWeapons = document.querySelector("#helpWeapons");
 
@@ -251,6 +254,9 @@ let configuredDistance = "small";
 let configuredWind = "on";
 let configuredAimingHelp = "on";
 let configuredTesting = false;
+let configuredCpuMode = false;
+let configuredCpuDifficulty = "easy";
+let cpuThinking = false;
 let activeBlackHole = null;
 
 function makeTank(id, color, accent, x, angle) {
@@ -285,6 +291,9 @@ function newBattle(resetMatch = false) {
   configuredWind = windSelect.value;
   configuredAimingHelp = aimingHelpSelect.value;
   configuredTesting = testingCheckbox.checked;
+  configuredCpuMode = playersSelect.value === "cpu";
+  configuredCpuDifficulty = cpuDifficultySelect.value;
+  cpuThinking = false;
   activeBlackHole = null;
   const dm = distanceModes[configuredDistance];
   WORLD_W = Math.round(WIDTH * dm.sizeScale);
@@ -297,7 +306,7 @@ function newBattle(resetMatch = false) {
   activeShot = null;
   battleOver = false;
   screenShake = 0;
-  currentTurn = Math.random() > 0.5 ? "red" : "blue";
+  currentTurn = configuredCpuMode ? "red" : (Math.random() > 0.5 ? "red" : "blue");
 
   tanks.red.x = Math.round(WORLD_W * 0.12 + Math.random() * (WORLD_W * 0.055));
   tanks.blue.x = Math.round(WORLD_W * 0.83 + Math.random() * (WORLD_W * 0.055));
@@ -321,6 +330,7 @@ function newBattle(resetMatch = false) {
       }
     }
   }
+  document.querySelector(".score.blue > span").textContent = configuredCpuMode ? "Blue 🤖" : "Blue";
   syncControlsToTurn();
   updateHud();
   messageEl.textContent = `${label(currentTurn)} aims first. Watch the wind and gravity.`;
@@ -775,7 +785,7 @@ function makeProjectile(settings) {
 }
 
 function update(dt) {
-  const busy = projectiles.length > 0 || !!activeBlackHole;
+  const busy = projectiles.length > 0 || !!activeBlackHole || cpuThinking;
   fireButton.disabled = busy || battleOver;
   storeButton.disabled = busy || battleOver;
   moveLeftButton.disabled = busy || battleOver || tanks[currentTurn].fuel <= 0;
@@ -1060,6 +1070,7 @@ function finishShot(owner) {
   updateHud();
   messageEl.textContent = activeShot.resultMessage || `${label(currentTurn)} turn. Adjust for wind, gravity, and the new terrain.`;
   activeShot = null;
+  if (configuredCpuMode && currentTurn === "blue") scheduleCpuTurn();
 }
 
 function craterTerrain(cx, cy, radius) {
@@ -1740,6 +1751,109 @@ function adjustActiveTankFromControls() {
   updateControlLabels();
 }
 
+// ── CPU opponent ───────────────────────────────────────────────────────────
+
+function simulateMissile(angle, power) {
+  // Fast forward-simulation of a Baby Missile using the real game physics.
+  // Returns the {x, y} world position where it first hits terrain (or exits bounds).
+  const weapon = weapons["missile"];
+  const tank = tanks["blue"];
+  const aim = getAimInfo(tank, angle);
+  const speed = power * weapon.speed * distanceModes[configuredDistance].powerBoost;
+  let px = aim.muzzleX;
+  let py = aim.muzzleY;
+  let vx = Math.cos(aim.radians) * speed;
+  let vy = -Math.sin(aim.radians) * speed;
+  const grav = currentGravity(); // missile gravityScale = 1
+  const dt = 0.05;
+  for (let age = 0; age < 9; age += dt) {
+    vx += wind * dt;
+    vy += grav * dt;
+    px += vx * dt;
+    py += vy * dt;
+    if (px < -45 || px > WORLD_W + 45 || py > WORLD_H + 90) break;
+    if (px >= 0 && px < WORLD_W && py >= terrainYAt(px)) break;
+  }
+  return { x: px, y: py };
+}
+
+function computeCpuShot() {
+  // Scan angles 5-175° at several power levels; pick the combo landing
+  // closest to the enemy (Red) tank, then smear with difficulty noise.
+  const enemy = tanks["red"];
+  let bestAngle = 135;
+  let bestPower = 62;
+  let bestDist = Infinity;
+
+  for (let power = 30; power <= 100; power += 10) {
+    for (let angle = 5; angle <= 175; angle += 1) {
+      const landing = simulateMissile(angle, power);
+      const dx = landing.x - enemy.x;
+      const dy = landing.y - enemy.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestAngle = angle;
+        bestPower = power;
+      }
+    }
+  }
+
+  const spread = configuredCpuDifficulty === "easy" ? 15
+               : configuredCpuDifficulty === "medium" ? 10
+               : 3;
+  bestAngle = clamp(Math.round(bestAngle + (Math.random() * 2 - 1) * spread), 5, 175);
+  bestPower = clamp(Math.round(bestPower + (Math.random() * 2 - 1) * spread), 20, 100);
+
+  return { angle: bestAngle, power: bestPower };
+}
+
+function animateCpuSliders(targetAngle, targetPower, callback) {
+  // Smoothly move the sliders to the CPU's chosen values so the human can watch.
+  const startAngle = Number(angleSlider.value);
+  const startPower = Number(powerSlider.value);
+  const duration = 700;
+  const start = performance.now();
+
+  function step(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    angleSlider.value = Math.round(startAngle + (targetAngle - startAngle) * ease);
+    powerSlider.value = Math.round(startPower + (targetPower - startPower) * ease);
+    updateControlLabels();
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      callback();
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function scheduleCpuTurn() {
+  cpuThinking = true;
+  messageEl.textContent = "CPU is thinking…";
+
+  setTimeout(() => {
+    const shot = computeCpuShot();
+    animateCpuSliders(shot.angle, shot.power, () => {
+      setTimeout(() => {
+        tanks["blue"].angle = shot.angle;
+        tanks["blue"].power = shot.power;
+        tanks["blue"].weapon = "missile";
+        angleSlider.value = shot.angle;
+        powerSlider.value = shot.power;
+        weaponSelect.value = "missile";
+        updateControlLabels();
+        cpuThinking = false;
+        fire();
+      }, 350);
+    });
+  }, 900);
+}
+
+// ── Store ──────────────────────────────────────────────────────────────────
+
 function openStore() {
   storePlayerLabel.textContent = label(currentTurn);
   storePlayerLabel.style.color = currentTurn === "red" ? "var(--red)" : "var(--blue)";
@@ -1855,6 +1969,10 @@ powerSlider.addEventListener("input", adjustActiveTankFromControls);
 helpModal.addEventListener("click", (event) => {
   if (event.target === helpModal) hideHelp();
 });
+playersSelect.addEventListener("change", () => {
+  cpuDifficultyGroup.style.display = playersSelect.value === "cpu" ? "" : "none";
+});
+
 storeButton.addEventListener("click", openStore);
 closeStoreButton.addEventListener("click", closeStore);
 storeModal.addEventListener("click", (event) => {

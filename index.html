@@ -122,6 +122,21 @@
         <h2 id="configTitle">Set Up Battle</h2>
         <div class="config-grid">
           <label>
+            Players
+            <select id="playersSelect">
+              <option value="2p">2 Players</option>
+              <option value="cpu">1 Player vs CPU</option>
+            </select>
+          </label>
+          <label id="cpuDifficultyGroup" style="display:none">
+            CPU Difficulty
+            <select id="cpuDifficultySelect">
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <label>
             Gravity
             <select id="gravitySelect">
               <option value="normal">Normal</option>
@@ -205,6 +220,8 @@
               <li><strong>Distance</strong> — Small is the classic map. Medium and Large zoom out so the tanks start farther apart. Shot power is boosted slightly on Medium and Large to match.</li>
               <li><strong>Wind</strong> — On means a random wind blows every battle and pushes shots sideways. Off turns wind off completely.</li>
               <li><strong>Aiming Help</strong> — On shows dotted trajectory hints so you can see roughly where your shot will go. Off hides them for a harder challenge.</li>
+              <li><strong>Players</strong> — 2 Players is the default hot-seat mode. 1 Player vs CPU lets you play solo against a computer opponent that always plays Blue.</li>
+              <li><strong>CPU Difficulty</strong> — Easy adds a big random wobble to the CPU's aim. Medium is tighter. Hard is nearly perfect. Only shown when 1 Player vs CPU is selected.</li>
               <li><strong>Testing Mode</strong> — Gives both players unlimited coins and unlocks every weapon at the start of the battle. Great for trying things out.</li>
             </ul>
           </section>
