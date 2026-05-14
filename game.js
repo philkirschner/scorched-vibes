@@ -1753,10 +1753,10 @@ function adjustActiveTankFromControls() {
 
 // ── CPU opponent ───────────────────────────────────────────────────────────
 
-function simulateMissile(angle, power) {
-  // Fast forward-simulation of a Baby Missile using the real game physics.
+function simulateShot(weaponKey, angle, power) {
+  // Fast forward-simulation using the real game physics.
   // Returns the {x, y} world position where it first hits terrain (or exits bounds).
-  const weapon = weapons["missile"];
+  const weapon = weapons[weaponKey];
   const tank = tanks["blue"];
   const aim = getAimInfo(tank, angle);
   const speed = power * weapon.speed * distanceModes[configuredDistance].powerBoost;
@@ -1764,7 +1764,7 @@ function simulateMissile(angle, power) {
   let py = aim.muzzleY;
   let vx = Math.cos(aim.radians) * speed;
   let vy = -Math.sin(aim.radians) * speed;
-  const grav = currentGravity(); // missile gravityScale = 1
+  const grav = currentGravity() * (weapon.gravityScale ?? 1);
   const dt = 0.05;
   for (let age = 0; age < 9; age += dt) {
     vx += wind * dt;
@@ -1778,8 +1778,9 @@ function simulateMissile(angle, power) {
 }
 
 function computeCpuShot() {
-  // Scan angles 5-175° at several power levels; pick the combo landing
-  // closest to the enemy (Red) tank, then smear with difficulty noise.
+  // Pick a weapon, scan angles 5-175° at several power levels, find the combo
+  // landing closest to the enemy (Red) tank, then smear with difficulty noise.
+  const cpuWeaponKey = Math.random() < 0.5 ? "missile" : "big";
   const enemy = tanks["red"];
   let bestAngle = 135;
   let bestPower = 62;
@@ -1787,7 +1788,7 @@ function computeCpuShot() {
 
   for (let power = 30; power <= 100; power += 10) {
     for (let angle = 5; angle <= 175; angle += 1) {
-      const landing = simulateMissile(angle, power);
+      const landing = simulateShot(cpuWeaponKey, angle, power);
       const dx = landing.x - enemy.x;
       const dy = landing.y - enemy.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1799,13 +1800,13 @@ function computeCpuShot() {
     }
   }
 
-  const spread = configuredCpuDifficulty === "easy" ? 15
-               : configuredCpuDifficulty === "medium" ? 10
-               : 3;
+  const spread = configuredCpuDifficulty === "easy" ? 10
+               : configuredCpuDifficulty === "medium" ? 5
+               : 2;
   bestAngle = clamp(Math.round(bestAngle + (Math.random() * 2 - 1) * spread), 5, 175);
   bestPower = clamp(Math.round(bestPower + (Math.random() * 2 - 1) * spread), 20, 100);
 
-  return { angle: bestAngle, power: bestPower };
+  return { angle: bestAngle, power: bestPower, weaponKey: cpuWeaponKey };
 }
 
 function animateCpuSliders(targetAngle, targetPower, callback) {
@@ -1840,10 +1841,11 @@ function scheduleCpuTurn() {
       setTimeout(() => {
         tanks["blue"].angle = shot.angle;
         tanks["blue"].power = shot.power;
-        tanks["blue"].weapon = "missile";
+        tanks["blue"].weapon = shot.weaponKey;
         angleSlider.value = shot.angle;
         powerSlider.value = shot.power;
-        weaponSelect.value = "missile";
+        weaponSelect.value = shot.weaponKey;
+        updateWeaponButtons();
         updateControlLabels();
         cpuThinking = false;
         fire();
