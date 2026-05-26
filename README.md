@@ -135,6 +135,8 @@ That folder should contain one recent playable version at a time, so someone can
 - Add round summary messages like "direct hit" or "close one."
 - Generalize fall damage beyond Drill impacts.
 - Add shields, teleporters, or parachutes.
+- Host the game online (GitHub Pages or similar).
+- Once hosted: add a server-side game log that automatically records every shot (angle, power, weapon, wind, gravity, terrain, damage, hit/miss) and battle outcome. Use the log to analyse balance, track improvement over time, and eventually let the CPU learn from real play history.
 
 ## Design Notes
 
