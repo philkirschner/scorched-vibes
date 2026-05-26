@@ -125,7 +125,7 @@ const weapons = {
     color: "#d9f99d",
     cluster: true,
     draw: "cluster",
-    price: 500,
+    price: 800,
   },
   airstrike: {
     label: "Airstrike",
@@ -134,7 +134,7 @@ const weapons = {
     speed: 5.1,
     color: "#ff4444",
     draw: "airstrike",
-    price: 1200,
+    price: 2000,
     airstrike: true,
   },
   airstrikeShard: {
@@ -153,7 +153,7 @@ const weapons = {
     speed: 5.0,
     color: "#8b5c2a",
     draw: "sinkhole",
-    price: 900,
+    price: 1500,
     sinkhole: true,
   },
   bouncy: {
@@ -164,7 +164,7 @@ const weapons = {
     color: "#c4ff5f",
     bounces: 2,
     draw: "bouncy",
-    price: 350,
+    price: 600,
   },
   drill: {
     label: "Drill",
@@ -174,7 +174,7 @@ const weapons = {
     color: "#d6d3c4",
     drillDepth: 54,
     draw: "drill",
-    price: 600,
+    price: 1000,
   },
   dirtMover: {
     label: "Dirt Mover",
@@ -184,7 +184,7 @@ const weapons = {
     color: "#a7c76f",
     raiseTerrain: true,
     draw: "dirt",
-    price: 350,
+    price: 600,
   },
   teleport: {
     label: "Teleport Shot",
@@ -194,7 +194,7 @@ const weapons = {
     color: "#c084fc",
     teleport: true,
     draw: "teleport",
-    price: 800,
+    price: 1400,
   },
   shieldBreaker: {
     label: "Shield Breaker",
@@ -204,7 +204,7 @@ const weapons = {
     speed: 5.15,
     color: "#7dd3fc",
     draw: "shieldBreaker",
-    price: 600,
+    price: 1000,
   },
   volcano: {
     label: "Volcano",
@@ -214,7 +214,7 @@ const weapons = {
     color: "#ff6b35",
     volcano: true,
     draw: "volcano",
-    price: 900,
+    price: 1600,
   },
   volcanoShard: {
     label: "Volcano Shard",
@@ -232,7 +232,7 @@ const weapons = {
     speed: 4.8,
     color: "#9933ff",
     draw: "blackHole",
-    price: 1500,
+    price: 2500,
     blackHole: true,
   },
 };
@@ -257,6 +257,8 @@ let configuredTesting = false;
 let configuredCpuMode = false;
 let configuredCpuDifficulty = "easy";
 let cpuThinking = false;
+let cpuBuyInterval = 3;
+let cpuTurnCount = 0;
 let activeBlackHole = null;
 
 function makeTank(id, color, accent, x, angle) {
@@ -274,7 +276,9 @@ function makeTank(id, color, accent, x, angle) {
     fuel: STARTING_FUEL,
     coins: 0,
     boostedTurns: 0,
-    unlockedWeapons: new Set(["missile", "big"]),
+    armorActive: false,
+    cloaked: false,
+    weaponAmmo: { missile: Infinity, big: Infinity },
   };
 }
 
@@ -311,11 +315,15 @@ function newBattle(resetMatch = false) {
   tanks.red.x = Math.round(WORLD_W * 0.12 + Math.random() * (WORLD_W * 0.055));
   tanks.blue.x = Math.round(WORLD_W * 0.83 + Math.random() * (WORLD_W * 0.055));
   generateTerrain();
+  cpuBuyInterval = Math.random() < 0.5 ? 3 : 4;
+  cpuTurnCount = 0;
   for (const tank of Object.values(tanks)) {
     tank.health = 100;
     tank.shield = 40;
     tank.fuel = STARTING_FUEL;
     tank.boostedTurns = 0;
+    tank.armorActive = false;
+    tank.cloaked = false;
   }
   tanks.red.angle = 45;
   tanks.blue.angle = 135;
@@ -326,7 +334,7 @@ function newBattle(resetMatch = false) {
     for (const tank of Object.values(tanks)) {
       tank.coins = 99999;
       for (const [key, w] of Object.entries(weapons)) {
-        if (!w.shard) tank.unlockedWeapons.add(key);
+        if (!w.shard) tank.weaponAmmo[key] = Infinity;
       }
     }
   }
@@ -464,7 +472,7 @@ function settleTanks(options = {}) {
 
 function syncControlsToTurn() {
   const tank = tanks[currentTurn];
-  if (!tank.unlockedWeapons.has(tank.weapon)) tank.weapon = "missile";
+  if (!(tank.weaponAmmo[tank.weapon] > 0)) tank.weapon = "missile";
   angleSlider.value = tank.angle;
   powerSlider.value = tank.power;
   weaponSelect.value = tank.weapon;
@@ -515,10 +523,15 @@ function renderWeaponButtons() {
     preview.height = 60;
     drawWeaponPreview(preview, key);
 
+    const info = document.createElement("div");
+    info.className = "weapon-button-info";
     const labelEl = document.createElement("span");
     labelEl.textContent = weapon.label;
+    const ammoEl = document.createElement("span");
+    ammoEl.className = "weapon-ammo";
+    info.append(labelEl, ammoEl);
 
-    button.append(preview, labelEl);
+    button.append(preview, info);
     button.addEventListener("click", () => selectWeapon(key));
     weaponGrid.append(button);
   }
@@ -572,21 +585,31 @@ function startConfiguredBattle(resetMatch = true) {
 
 function selectWeapon(key) {
   if (!weapons[key] || weapons[key].shard) return;
-  if (!tanks[currentTurn].unlockedWeapons.has(key)) return;
+  if (!(tanks[currentTurn].weaponAmmo[key] > 0)) return;
   weaponSelect.value = key;
   tanks[currentTurn].weapon = key;
   updateWeaponButtons();
 }
 
 function updateWeaponButtons() {
-  const unlocked = tanks[currentTurn].unlockedWeapons;
+  const ammo = tanks[currentTurn].weaponAmmo;
   for (const button of weaponGrid.querySelectorAll(".weapon-button")) {
     const key = button.dataset.weapon;
-    const isLocked = !unlocked.has(key);
-    const selected = !isLocked && key === weaponSelect.value;
+    const count = ammo[key] ?? 0;
+    const hasAmmo = count > 0;
+    const selected = hasAmmo && key === weaponSelect.value;
     button.classList.toggle("selected", selected);
-    button.classList.toggle("locked", isLocked);
+    button.classList.toggle("locked", !hasAmmo);
     button.setAttribute("aria-pressed", selected ? "true" : "false");
+    const ammoEl = button.querySelector(".weapon-ammo");
+    if (ammoEl) {
+      if (count === Infinity || weapons[key].starter) {
+        ammoEl.textContent = "";
+      } else {
+        ammoEl.textContent = `×${count}`;
+        ammoEl.className = "weapon-ammo" + (count <= 1 ? " low" : "");
+      }
+    }
   }
 }
 
@@ -1065,6 +1088,17 @@ function finishShot(owner) {
   }
 
   if (tanks[owner].boostedTurns > 0) tanks[owner].boostedTurns -= 1;
+
+  // Decrement ammo for the weapon that was just fired (starters use Infinity)
+  const firedKey = activeShot.weaponKey;
+  if (tanks[owner].weaponAmmo[firedKey] !== Infinity) {
+    tanks[owner].weaponAmmo[firedKey] = Math.max(0, (tanks[owner].weaponAmmo[firedKey] ?? 0) - 1);
+  }
+
+  // Cloak lasts one opponent turn — consume it now that the shot has landed
+  const target = owner === "red" ? "blue" : "red";
+  tanks[target].cloaked = false;
+
   currentTurn = owner === "red" ? "blue" : "red";
   syncControlsToTurn();
   updateHud();
@@ -1103,11 +1137,12 @@ function raiseTerrainMound(cx, radius) {
 function applyDamage(x, y, weapon, scale = 1) {
   const boostMult = (activeShot?.owner && tanks[activeShot.owner]?.boostedTurns > 0) ? 1.5 : 1;
   for (const tank of Object.values(tanks)) {
+    const armorMult = tank.armorActive ? 0.75 : 1;
     const d = distance({ x, y }, tank);
     const damageRadius = weapon.radius * 1.6 * scale;
     if (d < damageRadius) {
       const hit = Math.max(0, 1 - d / damageRadius);
-      const rawDamage = Math.round(weapon.damage * scale * hit * boostMult);
+      const rawDamage = Math.round(weapon.damage * scale * hit * boostMult * armorMult);
       const shieldDamage = Math.round((weapon.shieldDamage ?? rawDamage * 0.8) * hit);
       let healthDamage = rawDamage;
       let shieldLost = 0;
@@ -1138,7 +1173,8 @@ function applyDamage(x, y, weapon, scale = 1) {
 
 function applyDirectDamage(tank, amount, prefix) {
   const boostMult = (activeShot?.owner && tanks[activeShot.owner]?.boostedTurns > 0) ? 1.5 : 1;
-  amount = Math.round(amount * boostMult);
+  const armorMult = tank.armorActive ? 0.75 : 1;
+  amount = Math.round(amount * boostMult * armorMult);
   let remaining = amount;
   if (tank.shield > 0) {
     const shieldLoss = Math.min(tank.shield, remaining);
@@ -1161,6 +1197,13 @@ function finishBattle(winner) {
   projectiles = [];
   activeShot = null;
   scores[winner] += 1;
+
+  // Coin bonuses
+  tanks[winner].coins += 300;  // win bonus
+  const loser = winner === "red" ? "blue" : "red";
+  if (tanks[winner].health >= 80) tanks[winner].coins += 100;  // survived well
+  if (tanks[loser].health >= 80) tanks[loser].coins += 50;     // small consolation
+
   updateHud();
 
   if (scores[winner] >= WIN_SCORE) {
@@ -1303,6 +1346,9 @@ function drawTank(tank) {
   const slope = tankSlope(tank);
   ctx.rotate(slope);
 
+  const isCloaked = tank.cloaked && currentTurn !== tank.id;
+  if (isCloaked) ctx.globalAlpha = 0.18;
+
   if (tank.shield > 0) {
     const shieldColor = hexToRgb(tank.color);
     ctx.strokeStyle = `rgba(${shieldColor.r}, ${shieldColor.g}, ${shieldColor.b}, ${0.22 + tank.shield / 95})`;
@@ -1326,6 +1372,20 @@ function drawTank(tank) {
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
     ctx.fillText(`⚡${tank.boostedTurns}`, 0, -52);
+  }
+
+  if (tank.armorActive) {
+    const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 320);
+    ctx.strokeStyle = `rgba(200, 145, 40, ${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(0, -8, 44, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(215, 165, 55, ${0.75 + 0.15 * pulse})`;
+    ctx.font = `bold 11px Inter, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("🛡️", 0, -60);
   }
 
   ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
@@ -1384,7 +1444,8 @@ function drawTank(tank) {
   ctx.lineTo(Math.cos(radians - slope) * BARREL_LENGTH, -16 - Math.sin(radians - slope) * BARREL_LENGTH);
   ctx.stroke();
 
-  drawTankBars(tank);
+  if (!isCloaked) drawTankBars(tank);
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 
@@ -1831,7 +1892,43 @@ function animateCpuSliders(targetAngle, targetPower, callback) {
   requestAnimationFrame(step);
 }
 
+function cpuMaybeBuy() {
+  // CPU visits the store every cpuBuyInterval turns (3 or 4, randomised per battle)
+  cpuTurnCount++;
+  if (cpuTurnCount < cpuBuyInterval) return;
+  cpuTurnCount = 0;
+  cpuBuyInterval = Math.random() < 0.5 ? 3 : 4;
+
+  const tank = tanks["blue"];
+  let bought = null;
+
+  if (tank.health < 50 && tank.coins >= 500) {
+    tank.coins -= 500;
+    tank.health = Math.min(100, tank.health + 50);
+    bought = "health pack";
+  } else if (tank.shield < 10 && tank.coins >= 600) {
+    tank.coins -= 600;
+    tank.shield = 40;
+    bought = "repair kit";
+  } else if (tank.fuel <= 2 && tank.coins >= 200) {
+    tank.coins -= 200;
+    tank.fuel += 5;
+    bought = "fuel";
+  } else if (!tank.armorActive && tank.health < 70 && tank.coins >= 1800) {
+    tank.coins -= 1800;
+    tank.armorActive = true;
+    bought = "armor";
+  }
+
+  if (bought) {
+    updateHud();
+    updateWeaponButtons();
+    messageEl.textContent = `CPU bought ${bought}.`;
+  }
+}
+
 function scheduleCpuTurn() {
+  cpuMaybeBuy();
   cpuThinking = true;
   messageEl.textContent = "CPU is thinking…";
 
@@ -1875,27 +1972,28 @@ function renderStoreItems() {
   weaponList.innerHTML = "";
   for (const [key, weapon] of Object.entries(weapons)) {
     if (weapon.shard || weapon.starter) continue;
-    const owned = tank.unlockedWeapons.has(key);
+    const currentAmmo = tank.weaponAmmo[key] ?? 0;
     const canAfford = tank.coins >= weapon.price;
 
     const item = document.createElement("div");
-    item.className = "store-item" + (owned ? " owned" : "");
+    item.className = "store-item";
 
     const preview = document.createElement("canvas");
     preview.width = 84;
     preview.height = 60;
     drawWeaponPreview(preview, key);
 
+    const ammoLabel = currentAmmo > 0 ? ` — ${currentAmmo} left` : "";
     const info = document.createElement("div");
     info.className = "store-item-info";
-    info.innerHTML = `<span class="store-item-name">${weapon.label}</span>
-      <span class="store-item-price">${owned ? "Owned" : `🪙 ${weapon.price}`}</span>`;
+    info.innerHTML = `<span class="store-item-name">${weapon.label}${ammoLabel}</span>
+      <span class="store-item-price">🪙 ${weapon.price} for ×5</span>`;
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = owned ? "✓" : "Buy";
-    btn.disabled = owned || !canAfford;
-    if (!owned) btn.addEventListener("click", () => buyItem("weapon", key));
+    btn.textContent = currentAmmo > 0 ? "+5" : "Buy ×5";
+    btn.disabled = !canAfford;
+    btn.addEventListener("click", () => buyItem("weapon", key));
 
     item.append(preview, info, btn);
     weaponList.append(item);
@@ -1904,14 +2002,17 @@ function renderStoreItems() {
   const supplyList = document.querySelector("#storeSupplyList");
   supplyList.innerHTML = "";
   const supplies = [
-    { id: "health", label: "+50 Health",                     price: 250, icon: "❤️" },
-    { id: "fuel",   label: "+5 Fuel",                        price: 100, icon: "⛽" },
-    { id: "boost",  label: "Damage Boost — +50% for 3 turns", price: 800, icon: "⚡" },
+    { id: "health",    label: "+50 Health",                      price: 500,  icon: "❤️",  disabled: false },
+    { id: "fuel",      label: "+5 Fuel",                         price: 200,  icon: "⛽",  disabled: false },
+    { id: "boost",     label: "Damage Boost — +50% for 5 turns", price: 1200, icon: "⚡",  disabled: false },
+    { id: "armor",     label: "Armor — 25% less damage taken",   price: 1800, icon: "🛡️", disabled: tank.armorActive },
+    { id: "repairkit", label: "Repair Kit — restore full shield", price: 600,  icon: "🔧", disabled: tank.shield >= 40 },
+    { id: "cloak",     label: "Cloak — invisible next enemy turn",price: 1000, icon: "👻", disabled: tank.cloaked },
   ];
   for (const supply of supplies) {
     const canAfford = tank.coins >= supply.price;
     const item = document.createElement("div");
-    item.className = "store-item";
+    item.className = "store-item" + (supply.disabled ? " owned" : "");
 
     const iconEl = document.createElement("div");
     iconEl.className = "store-supply-icon";
@@ -1919,14 +2020,15 @@ function renderStoreItems() {
 
     const info = document.createElement("div");
     info.className = "store-item-info";
+    const statusText = supply.disabled ? "Active" : `🪙 ${supply.price}`;
     info.innerHTML = `<span class="store-item-name">${supply.label}</span>
-      <span class="store-item-price">🪙 ${supply.price}</span>`;
+      <span class="store-item-price">${statusText}</span>`;
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = "Buy";
-    btn.disabled = !canAfford;
-    btn.addEventListener("click", () => buyItem(supply.id));
+    btn.textContent = supply.disabled ? "✓" : "Buy";
+    btn.disabled = supply.disabled || !canAfford;
+    if (!supply.disabled) btn.addEventListener("click", () => buyItem(supply.id));
 
     item.append(iconEl, info, btn);
     supplyList.append(item);
@@ -1937,22 +2039,34 @@ function buyItem(type, key) {
   const tank = tanks[currentTurn];
   if (type === "weapon") {
     const price = weapons[key].price;
-    if (tank.coins < price || tank.unlockedWeapons.has(key)) return;
+    if (tank.coins < price) return;
     tank.coins -= price;
-    tank.unlockedWeapons.add(key);
+    tank.weaponAmmo[key] = (tank.weaponAmmo[key] ?? 0) + 5;
     updateWeaponButtons();
   } else if (type === "health") {
-    if (tank.coins < 250) return;
-    tank.coins -= 250;
+    if (tank.coins < 500) return;
+    tank.coins -= 500;
     tank.health = Math.min(100, tank.health + 50);
   } else if (type === "fuel") {
-    if (tank.coins < 100) return;
-    tank.coins -= 100;
+    if (tank.coins < 200) return;
+    tank.coins -= 200;
     tank.fuel += 5;
   } else if (type === "boost") {
-    if (tank.coins < 800) return;
-    tank.coins -= 800;
-    tank.boostedTurns = 3;
+    if (tank.coins < 1200) return;
+    tank.coins -= 1200;
+    tank.boostedTurns = 5;
+  } else if (type === "armor") {
+    if (tank.coins < 1800 || tank.armorActive) return;
+    tank.coins -= 1800;
+    tank.armorActive = true;
+  } else if (type === "repairkit") {
+    if (tank.coins < 600 || tank.shield >= 40) return;
+    tank.coins -= 600;
+    tank.shield = 40;
+  } else if (type === "cloak") {
+    if (tank.coins < 1000 || tank.cloaked) return;
+    tank.coins -= 1000;
+    tank.cloaked = true;
   }
   updateHud();
   renderStoreItems();

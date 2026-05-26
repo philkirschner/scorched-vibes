@@ -268,12 +268,30 @@ select {
   background: rgba(17, 20, 17, 0.5);
 }
 
+.weapon-button-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .weapon-button span {
   overflow-wrap: anywhere;
   color: var(--text);
   font-size: 0.73rem;
   font-weight: 700;
   line-height: 1.05;
+}
+
+.weapon-ammo {
+  font-size: 0.63rem;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.weapon-ammo.low {
+  color: var(--red);
 }
 
 .weapon-button.selected {
